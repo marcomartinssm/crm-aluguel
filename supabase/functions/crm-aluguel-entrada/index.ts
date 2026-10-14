@@ -234,6 +234,11 @@ async function configTexto(chave: string, padrao: string): Promise<string> {
   return data?.valor ?? padrao;
 }
 
+// Lead que saiu do funil sem fechar. Se voltar a falar antes de 120 dias, não vira cadastro novo:
+// fica marcado "voltou a falar" para a atendente reabrir no funil ou manter encerrado.
+const LEAD_ENCERRADO = (c: any) =>
+  c.classificacao === "aluguel" && ["perdido", "descartado", "reprovado"].includes(c.etapa);
+
 const ABERTO = (c: any) =>
   c.classificacao === null ||
   (c.classificacao === "aluguel" && !["realizado", "perdido", "descartado", "reprovado"].includes(c.etapa));
@@ -269,8 +274,8 @@ async function receberMensagem(instancia: string, d: any) {
   const recente = (existentes ?? [])[0];
   const quieto = recente ? (agoraSeg * 1000 - Date.parse(recente.ultima_mensagem_em)) / 86400000 : Infinity;
 
-  // Já está na Entrada ou no funil, ou foi resolvido há pouco (ex.: "Outros" que manda mensagem todo dia):
-  // só atualiza a última mensagem.
+  // Já está na Entrada ou no funil, ou teve contato há menos de 120 dias (regra do Marco):
+  // não cadastra de novo, só atualiza a última mensagem.
   const alvo = aberto ?? (quieto < reabrirAposDias ? recente : null);
   if (alvo) {
     const mudancas: Record<string, unknown> = { jid, nome: alvo.nome ?? nome, atualizado_em: new Date().toISOString() };
@@ -283,8 +288,13 @@ async function receberMensagem(instancia: string, d: any) {
       // cadastro do site: o relógio da 1ª resposta começa quando o cliente responde a automática
       if (!alvo.cliente_falou_em) mudancas.cliente_falou_em = quando;
     }
+    const voltou = !aberto && LEAD_ENCERRADO(alvo) && !alvo.voltou_em;
+    if (voltou) {
+      mudancas.voltou_em = quando;
+      mudancas.voltou_mensagem = cadastroSite ? "Cadastrou de novo no site" : texto;
+    }
     await db.from("crm_aluguel_contatos").update(mudancas).eq("id", alvo.id);
-    return { atualizado: alvo.id, cadastroSite };
+    return { atualizado: alvo.id, cadastroSite, voltou };
   }
 
   const hist = await verificarHistorico(instancia, jid, telefone, agoraSeg);

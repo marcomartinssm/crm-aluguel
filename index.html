@@ -103,6 +103,10 @@
   .selo.hist { background: var(--ambar-claro); color: var(--ambar); }
   .selo.site { background: var(--destaque-claro); color: var(--destaque); }
   .selo.dup { background: #b3261e; color: #fff; }
+  .selo.voltou { background: #1f5fbf; color: #fff; }
+  .voltaram { border: 2px solid #1f5fbf; border-radius: 14px; margin-bottom: 16px; background: var(--card); }
+  .voltaram .cab { padding: 12px 16px 4px; font-weight: 600; }
+  .voltaram .cab span { font-weight: 400; color: var(--suave); font-size: 13px; }
   .selo.quem { background: var(--fundo); color: var(--suave); border: 1px solid var(--borda); }
   #atendente { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
   .tempo { font-size: 13px; margin-top: 2px; }
@@ -168,6 +172,7 @@
           <button data-f="site">Cadastro no site</button>
         </div>
       </div>
+      <div id="voltaram"></div>
       <div class="lista" id="lista"><div class="vazio">Carregando…</div></div>
     </section>
 
@@ -359,6 +364,7 @@ async function carregar() {
     .limit(300);
   if (error) { $("lista").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
   await carregarDuplicados();
+  await carregarVoltaram();
   contatos = data;
   desenhar();
 }
@@ -371,6 +377,7 @@ function desenhar() {
     (filtro === "site" && c.origem === "cadastro_site"));
   const novos = contatos.filter((c) => !c.tem_historico).length;
   $("contagem").textContent = contatos.length ? `· ${contatos.length} aguardando (${novos} novos)` : "";
+  if (!contatos.length && voltaram.length) { $("lista").innerHTML = '<div class="vazio">Nenhum cliente novo esperando análise.</div>'; return; }
   if (!visiveis.length) {
     $("lista").innerHTML = `<div class="vazio">${contatos.length ? "Nenhum contato neste filtro." : "Nenhum cliente esperando análise."}</div>`;
     return;
@@ -401,6 +408,58 @@ function desenhar() {
     </div>`;
   }).join("");
 }
+
+// ---------- voltaram a falar (lead encerrado que escreveu de novo antes de 120 dias) ----------
+
+let voltaram = [];
+
+async function carregarVoltaram() {
+  const { data } = await comAtendente(db.from("crm_aluguel_contatos")
+    .select("id, instancia, telefone, nome, etapa, motivo, etapa_da_perda, fechado_em, voltou_em, voltou_mensagem")
+    .eq("classificacao", "aluguel")
+    .not("voltou_em", "is", null))
+    .order("voltou_em", { ascending: false })
+    .limit(100);
+  voltaram = data ?? [];
+  desenharVoltaram();
+}
+
+function desenharVoltaram() {
+  if (!voltaram.length) { $("voltaram").innerHTML = ""; return; }
+  $("voltaram").innerHTML = `<div class="voltaram">
+    <div class="cab">Voltaram a falar · ${voltaram.length} <span>— atualize o status: estavam encerrados e escreveram de novo antes de 120 dias</span></div>
+    ${voltaram.map((c) => `<div class="item" data-id="${c.id}">
+      <div class="av hist">${esc(iniciais(c.nome, c.telefone))}</div>
+      <div class="info">
+        <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}<span class="selo voltou">Voltou a falar</span>${seloAtendente(c)}${seloDuplicado(c)}</div>
+        <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a> · voltou ${quando(c.voltou_em)} · estava em <b>${esc((COLUNAS.find((x) => x.id === c.etapa) ?? {}).nome ?? c.etapa)}</b>${c.motivo ? " (" + esc(MOTIVOS[c.motivo] ?? c.motivo) + ")" : ""} desde ${new Date(c.fechado_em).toLocaleDateString("pt-BR")}</div>
+        <div class="msg" title="${esc(c.voltou_mensagem)}">"${esc(c.voltou_mensagem)}"</div>
+      </div>
+      <div class="acoes">
+        <button class="principal" data-v="reabrir">Reabrir no funil</button>
+        <button data-v="manter">Manter encerrado</button>
+      </div>
+    </div>`).join("")}
+  </div>`;
+}
+
+$("voltaram").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-v]");
+  if (!b) return;
+  const item = b.closest(".item");
+  item.querySelectorAll("button").forEach((x) => (x.disabled = true));
+  const { error } = b.dataset.v === "reabrir"
+    ? await db.rpc("crm_aluguel_mover", { p_contato: item.dataset.id, p_para: "atendimento", p_motivo: null, p_sem_visita: false })
+    : await db.rpc("crm_aluguel_manter_encerrado", { p_contato: item.dataset.id });
+  if (error) {
+    aviso(error.message);
+    item.querySelectorAll("button").forEach((x) => (x.disabled = false));
+    return;
+  }
+  aviso(b.dataset.v === "reabrir" ? "Reaberto no funil, em 1. Atendimento" : "Mantido encerrado");
+  voltaram = voltaram.filter((c) => c.id !== item.dataset.id);
+  desenharVoltaram();
+});
 
 $("filtros").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-f]");
@@ -462,6 +521,8 @@ async function carregarPainel() {
 
   await carregarDuplicados();
   const dupNoFiltro = Object.keys(duplicados).length;
+  const { count: voltaramN } = await comAtendente(db.from("crm_aluguel_contatos")
+    .select("id", { count: "exact", head: true }).eq("classificacao", "aluguel").not("voltou_em", "is", null));
   const et = d.agora.etapas, mv = d.movimento, en = d.entrada, rs = d.resposta, fe = d.fechamento;
   const cl = en.classificados;
   const n = (o, k) => o[k] ?? 0;
@@ -479,6 +540,7 @@ async function carregarPainel() {
     ${caixa("3. Ficha em análise", n(et, "ficha"))}
     ${caixa("3.1 Aprovado", n(et, "aprovado"), "aguardando fechar")}
     ${caixa("Leads duplicados", dupNoFiltro, "cartões em atendimento com as duas", dupNoFiltro > 0)}
+    ${caixa("Voltaram a falar", voltaramN, "encerrados aguardando novo status", voltaramN > 0)}
   </div>`;
 
   h += `<div class="secao-painel">Entrada no período</div><div class="grade">
@@ -583,9 +645,9 @@ let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / c
 async function carregarFunil() {
   const desde = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data, error } = await comAtendente(db.from("crm_aluguel_contatos")
-    .select("id, instancia, telefone, nome, origem, imovel_link, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
+    .select("id, instancia, telefone, nome, origem, imovel_link, voltou_em, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
     .eq("classificacao", "aluguel"))
-    .or(`fechado_em.is.null,fechado_em.gte.${desde}`)
+    .or(`fechado_em.is.null,fechado_em.gte.${desde},voltou_em.not.is.null`)
     .order("etapa_em", { ascending: true })
     .limit(1000);
   if (error) { $("quadro").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
@@ -598,7 +660,7 @@ function cartaoFunil(c) {
   const dias = (Date.now() - new Date(c.etapa_em)) / 60000;
   let h = `<div class="cartao" data-id="${c.id}">
     <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}</div>
-    <div>${seloDuplicado(c)}${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
+    <div>${c.voltou_em ? '<span class="selo voltou">Voltou a falar</span> ' : ""}${seloDuplicado(c)}${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
     <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a>${c.imovel_link ? ` · <a href="${esc(c.imovel_link)}" target="_blank" rel="noopener">imóvel</a>` : ""}</div>
     <div class="meta">${c.fechado_em ? "nesta etapa desde " + new Date(c.etapa_em).toLocaleDateString("pt-BR") : "há " + duracao(dias) + " nesta etapa"}</div>`;
   if (c.etapa === "realizado" && c.entrou_funil_em) {
