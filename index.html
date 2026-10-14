@@ -102,6 +102,7 @@
   .selo.novo { background: var(--verde-claro); color: var(--verde); }
   .selo.hist { background: var(--ambar-claro); color: var(--ambar); }
   .selo.site { background: var(--destaque-claro); color: var(--destaque); }
+  .selo.dup { background: #b3261e; color: #fff; }
   .selo.quem { background: var(--fundo); color: var(--suave); border: 1px solid var(--borda); }
   #atendente { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
   .tempo { font-size: 13px; margin-top: 2px; }
@@ -208,6 +209,16 @@ const ATENDENTES = { ALUGUELARA: "Thainara", central: "Milene" };
 
 let usuario = null;      // { nome, papel }
 let filtroAtendente = ""; // admin: "" = todas
+let duplicados = {};      // contato_id -> nome da outra atendente que também atende o mesmo telefone
+
+async function carregarDuplicados() {
+  const { data } = await db.rpc("crm_aluguel_duplicados");
+  duplicados = Object.fromEntries((data ?? []).map((d) => [d.contato_id, d.outras]));
+}
+
+function seloDuplicado(c) {
+  return duplicados[c.id] ? `<span class="selo dup" title="Este telefone também está em atendimento com ${esc(duplicados[c.id])}">Lead duplicado · também com ${esc(duplicados[c.id])}</span>` : "";
+}
 let contatos = [];
 let filtro = "todos";
 let timer = null;
@@ -347,6 +358,7 @@ async function carregar() {
     .order("primeira_mensagem_em", { ascending: false })
     .limit(300);
   if (error) { $("lista").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
+  await carregarDuplicados();
   contatos = data;
   desenhar();
 }
@@ -375,7 +387,7 @@ function desenhar() {
     return `<div class="item" data-id="${c.id}">
       <div class="av ${tipo}">${esc(iniciais(c.nome, c.telefone))}</div>
       <div class="info">
-        <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}<span class="selo ${tipo}">${selo}</span>${seloAtendente(c)}${site ? '<span class="selo site">Cadastro no site</span>' : ""}</div>
+        <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}<span class="selo ${tipo}">${selo}</span>${seloAtendente(c)}${seloDuplicado(c)}${site ? '<span class="selo site">Cadastro no site</span>' : ""}</div>
         <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a> · ${site ? "cadastrou" : "chegou"} ${quando(c.primeira_mensagem_em)}${imovel}${detalhe}</div>
         <div class="msg" title="${esc(msg)}">"${esc(msg)}"</div>
         ${linhaTempo(c)}
@@ -448,6 +460,8 @@ async function carregarPainel() {
   const { data: d, error } = await db.rpc("crm_aluguel_painel", { p_inicio: ini.toISOString(), p_fim: fim.toISOString(), p_instancia: filtroAtendente || null });
   if (error) { $("painel").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
 
+  await carregarDuplicados();
+  const dupNoFiltro = Object.keys(duplicados).length;
   const et = d.agora.etapas, mv = d.movimento, en = d.entrada, rs = d.resposta, fe = d.fechamento;
   const cl = en.classificados;
   const n = (o, k) => o[k] ?? 0;
@@ -464,6 +478,7 @@ async function carregarPainel() {
     ${caixa("2.2 Faltou", n(et, "visita_nao_realizada"))}
     ${caixa("3. Ficha em análise", n(et, "ficha"))}
     ${caixa("3.1 Aprovado", n(et, "aprovado"), "aguardando fechar")}
+    ${caixa("Leads duplicados", dupNoFiltro, "cartões em atendimento com as duas", dupNoFiltro > 0)}
   </div>`;
 
   h += `<div class="secao-painel">Entrada no período</div><div class="grade">
@@ -574,6 +589,7 @@ async function carregarFunil() {
     .order("etapa_em", { ascending: true })
     .limit(1000);
   if (error) { $("quadro").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
+  await carregarDuplicados();
   funil = data;
   desenharFunil();
 }
@@ -582,7 +598,7 @@ function cartaoFunil(c) {
   const dias = (Date.now() - new Date(c.etapa_em)) / 60000;
   let h = `<div class="cartao" data-id="${c.id}">
     <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}</div>
-    <div>${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
+    <div>${seloDuplicado(c)}${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
     <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a>${c.imovel_link ? ` · <a href="${esc(c.imovel_link)}" target="_blank" rel="noopener">imóvel</a>` : ""}</div>
     <div class="meta">${c.fechado_em ? "nesta etapa desde " + new Date(c.etapa_em).toLocaleDateString("pt-BR") : "há " + duracao(dias) + " nesta etapa"}</div>`;
   if (c.etapa === "realizado" && c.entrou_funil_em) {

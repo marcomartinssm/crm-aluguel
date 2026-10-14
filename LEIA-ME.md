@@ -23,7 +23,10 @@ Três telas: **Entrada** → **Funil de aluguel** → **Painel** (o Painel só a
   e o link do imóvel (`origem = cadastro_site`). Se o texto da automação mudar, ajustar `PADRAO_CADASTRO_SITE` na função.
 - Grupos, números internos e corretores são ignorados.
 - Cliente já na Entrada ou no funil: só atualiza a última mensagem.
-- Cliente resolvido (Vendas/Outros/final do funil) que volta a escrever **depois de 7 dias**: entra de novo na Entrada.
+- **Regra dos 120 dias:** o mesmo lead não é cadastrado de novo na mesma atendente antes de 120 dias sem contato
+  (`reabrir_apos_dias` = 120). Até lá, mensagem nova só atualiza o cadastro que já existe (mesmo se já foi descartado/perdido).
+- **Lead duplicado:** o mesmo telefone (últimos 8 dígitos) aberto com Thainara e Milene ao mesmo tempo ganha o selo vermelho
+  "Lead duplicado · também com X" (função `crm_aluguel_duplicados()`); o Painel mostra quantos são.
 - "Cliente já com histórico" = tem mensagem com a Thainara de mais de 24h atrás, OU está na tabela `leads`, OU já passou pelo CRM de aluguel.
 
 ## Tempo de primeira resposta
