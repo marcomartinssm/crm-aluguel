@@ -31,6 +31,16 @@ Três telas: **Entrada** → **Funil de aluguel** → **Painel** (o Painel só a
 - Guarda os minutos corridos (`primeira_resposta_min`) e só os minutos de horário comercial
   (`primeira_resposta_min_expediente`; seg-sex 8h-12h e 13h30-18h, sáb 8h-12h — mesmo horário do Radar).
 
+## Funil (função `crm_aluguel_mover` no banco)
+Colunas: 1 Atendimento · 2 Visita · 2.1 Visita realizada · 2.2 Não realizada · 3 Ficha cadastral · 3.1 Aprovado ·
+3.2 Reprovado · 4.1 Realizado · 4.2 Perdido · 5 Descartado. O banco só aceita os caminhos previstos:
+- Ficha sem visita (saindo de 1 ou 2.2) exige "Cliente não quis visitar".
+- Perdido (só de 3.1) e Descartado (de 1, 2.1, 2.2) exigem motivo; Reprovado grava o motivo sozinho.
+- A etapa onde o cliente parou fica em `etapa_da_perda`; finais podem ser reabertos (voltam para Atendimento).
+- Cada mudança vira uma linha em `crm_aluguel_movimentos`. Tempo até fechar = `fechado_em - entrou_funil_em`.
+
+Entrada tem 4 botões: Aluguel, Vendas, Outros, Suporte (boleto, manutenção etc.).
+
 ## Dar acesso a alguém
 1. Supabase → Authentication → Users → Add user (e-mail e senha, marcar "Auto Confirm").
 2. Rodar no SQL:

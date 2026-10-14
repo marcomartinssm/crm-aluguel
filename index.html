@@ -6,6 +6,7 @@
 <title>CRM Aluguel · Projetar</title>
 <style>
   :root {
+    color-scheme: light dark;
     --fundo: #f6f4f1; --card: #ffffff; --borda: #e6e1da; --texto: #2a2522; --suave: #7a716a;
     --destaque: #7a1f2b; --destaque-claro: #f3e7e8;
     --verde: #2f6b2f; --verde-claro: #e6f1e1; --ambar: #8a5a0b; --ambar-claro: #faefd9;
@@ -42,6 +43,32 @@
   .quem { font-size: 13px; color: var(--suave); display: flex; gap: 10px; align-items: center; }
 
   main { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+  main.largo { max-width: none; }
+
+  /* funil */
+  .quadro { display: grid; grid-auto-flow: column; grid-auto-columns: 210px; gap: 10px; overflow-x: auto; padding-bottom: 10px; align-items: start; }
+  .coluna { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 10px; min-height: 160px; }
+  .coluna h3 { margin: 0; font-size: 14px; display: flex; justify-content: space-between; gap: 6px; }
+  .coluna h3 .n { font-weight: 400; color: var(--suave); }
+  .coluna .sub { font-size: 12px; color: var(--suave); margin: 2px 0 10px; min-height: 16px; }
+  .coluna.azul { background: #eaf1fb; border-color: #c9dbf3; }
+  .coluna.ambar { background: var(--ambar-claro); border-color: transparent; }
+  .coluna.verde { background: var(--verde-claro); border-color: transparent; }
+  .coluna.vermelho { background: #fbeaea; border-color: transparent; }
+  @media (prefers-color-scheme: dark) {
+    .coluna.azul { background: #1d2a3a; border-color: #2c3e55; }
+    .coluna.vermelho { background: #3a2222; }
+  }
+  .cartao { background: var(--card); border: 1px solid var(--borda); border-radius: 10px; padding: 9px; margin-bottom: 8px; font-size: 13px; }
+  .cartao .nome { font-size: 14px; }
+  .cartao .meta, .cartao .tempo { font-size: 12px; }
+  .cartao .selo { font-size: 10px; }
+  .cartao .botoes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .cartao .botoes button { font-size: 12px; padding: 4px 8px; flex: 1 1 auto; }
+  .cartao select { font: inherit; font-size: 12px; width: 100%; margin-top: 8px; padding: 5px; border-radius: 6px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
+  .cartao label { display: flex; gap: 6px; align-items: center; font-size: 12px; margin-top: 8px; }
+  .motivo { font-size: 12px; margin-top: 4px; padding: 3px 6px; border-radius: 6px; background: var(--fundo); color: var(--suave); }
+  .busca { max-width: 260px; }
   .topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
   .topo h2 { margin: 0; font-size: 20px; }
   .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -121,7 +148,12 @@
     </section>
 
     <section id="aba-funil" hidden>
-      <div class="embreve">O funil de aluguel é a próxima etapa da construção.</div>
+      <div class="topo">
+        <h2>Funil de aluguel <span class="meta" id="contagem-funil"></span></h2>
+        <input class="busca" id="busca-funil" type="search" placeholder="Buscar nome ou telefone">
+      </div>
+      <div class="quadro" id="quadro"><div class="vazio">Carregando…</div></div>
+      <p class="meta">Realizado, perdido, reprovado e descartado mostram os últimos 30 dias.</p>
     </section>
 
     <section id="aba-painel" hidden>
@@ -219,7 +251,7 @@ async function entrar(sessao) {
   $("login").hidden = true; $("app").hidden = false;
   carregar();
   clearInterval(timer);
-  timer = setInterval(carregar, 20000);
+  timer = setInterval(() => { carregar(); if (!$("aba-funil").hidden && !abertoEm) carregarFunil(); }, 20000);
 }
 
 $("form-login").addEventListener("submit", async (e) => {
@@ -245,6 +277,8 @@ $("abas").addEventListener("click", (e) => {
   if (b.dataset.aba === "painel" && usuario?.papel !== "admin") return;
   document.querySelectorAll("#abas button").forEach((x) => x.classList.toggle("ativo", x === b));
   ["entrada", "funil", "painel"].forEach((a) => ($("aba-" + a).hidden = a !== b.dataset.aba));
+  document.querySelector("main").classList.toggle("largo", b.dataset.aba === "funil");
+  if (b.dataset.aba === "funil") carregarFunil();
 });
 
 // ---------- entrada ----------
@@ -293,6 +327,7 @@ function desenhar() {
         <button data-c="aluguel">Aluguel</button>
         <button data-c="vendas">Vendas</button>
         <button data-c="outros">Outros</button>
+        <button data-c="suporte">Suporte</button>
       </div>
     </div>`;
   }).join("");
@@ -317,10 +352,160 @@ $("lista").addEventListener("click", async (e) => {
     item.querySelectorAll("button").forEach((x) => (x.disabled = false));
     return;
   }
-  const nomes = { aluguel: "o funil de aluguel", vendas: "Vendas", outros: "Outros" };
+  const nomes = { aluguel: "o funil de aluguel", vendas: "Vendas", outros: "Outros", suporte: "Suporte" };
   aviso(`Enviado para ${nomes[b.dataset.c]}`);
   contatos = contatos.filter((c) => c.id !== item.dataset.id);
   desenhar();
+});
+
+// ---------- funil ----------
+
+const COLUNAS = [
+  { id: "atendimento",          num: "1",   nome: "Atendimento" },
+  { id: "visita",               num: "2",   nome: "Visita",           sub: "Agendada" },
+  { id: "visita_realizada",     num: "2.1", nome: "Visita realizada", sub: "Cliente foi", cor: "azul" },
+  { id: "visita_nao_realizada", num: "2.2", nome: "Não realizada",    sub: "Cliente faltou", cor: "ambar" },
+  { id: "ficha",                num: "3",   nome: "Ficha cadastral",  sub: "Em análise" },
+  { id: "aprovado",             num: "3.1", nome: "Aprovado",         sub: "Ficha aprovada", cor: "azul" },
+  { id: "reprovado",            num: "3.2", nome: "Reprovado",        sub: "Sem condições de alugar", cor: "ambar" },
+  { id: "realizado",            num: "4.1", nome: "Realizado",        sub: "Fechou com a Projetar", cor: "verde" },
+  { id: "perdido",              num: "4.2", nome: "Perdido",          sub: "Aprovado, mas não fechou", cor: "vermelho" },
+  { id: "descartado",           num: "5",   nome: "Descartado",       sub: "Desistiu antes da ficha", cor: "vermelho" },
+];
+
+const MOTIVOS = {
+  alugou_outra_imobiliaria: "Alugou com outra imobiliária",
+  alugou_direto: "Alugou direto com o proprietário",
+  desistiu_de_locar: "Desistiu de locar",
+  nao_responde: "Não responde mais as mensagens",
+  reprovado: "Reprovado",
+};
+
+const NOME_ETAPA = Object.fromEntries(COLUNAS.map((c) => [c.id, c.nome.toLowerCase()]));
+
+// botões de cada etapa: [texto, destino, tipo]  tipo: motivo | semvisita | confirmar
+const ACOES = {
+  atendimento:          [["Marcar visita", "visita"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
+  visita:               [["Realizada", "visita_realizada"], ["Não foi", "visita_nao_realizada"]],
+  visita_realizada:     [["Enviar ficha", "ficha"], ["Descartar", "descartado", "motivo"]],
+  visita_nao_realizada: [["Reagendar", "visita"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
+  ficha:                [["Aprovar", "aprovado"], ["Reprovar", "reprovado", "confirmar"]],
+  aprovado:             [["Realizado", "realizado", "confirmar"], ["Perdido", "perdido", "motivo"]],
+  reprovado:  [["Reabrir", "atendimento", "confirmar"]],
+  realizado:  [["Reabrir", "atendimento", "confirmar"]],
+  perdido:    [["Reabrir", "atendimento", "confirmar"]],
+  descartado: [["Reabrir", "atendimento", "confirmar"]],
+};
+
+let funil = [];
+let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / confirmação
+
+async function carregarFunil() {
+  const desde = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data, error } = await db.from("crm_aluguel_contatos")
+    .select("id, telefone, nome, origem, imovel_link, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
+    .eq("classificacao", "aluguel")
+    .or(`fechado_em.is.null,fechado_em.gte.${desde}`)
+    .order("etapa_em", { ascending: true })
+    .limit(1000);
+  if (error) { $("quadro").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
+  funil = data;
+  desenharFunil();
+}
+
+function cartaoFunil(c) {
+  const dias = (Date.now() - new Date(c.etapa_em)) / 60000;
+  let h = `<div class="cartao" data-id="${c.id}">
+    <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}</div>
+    <div>${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
+    <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a>${c.imovel_link ? ` · <a href="${esc(c.imovel_link)}" target="_blank" rel="noopener">imóvel</a>` : ""}</div>
+    <div class="meta">${c.fechado_em ? "nesta etapa desde " + new Date(c.etapa_em).toLocaleDateString("pt-BR") : "há " + duracao(dias) + " nesta etapa"}</div>`;
+  if (c.etapa === "realizado" && c.entrou_funil_em) {
+    h += `<div class="tempo ok">Fechou em ${duracao((new Date(c.fechado_em) - new Date(c.entrou_funil_em)) / 60000)}</div>`;
+  } else if (!c.fechado_em) {
+    h += linhaTempo(c);
+  }
+  if (c.motivo) h += `<div class="motivo">${esc(MOTIVOS[c.motivo] ?? c.motivo)}${c.etapa_da_perda ? " · " + esc(NOME_ETAPA[c.etapa_da_perda] ?? c.etapa_da_perda) : ""}</div>`;
+
+  if (abertoEm && abertoEm.id === c.id) {
+    if (abertoEm.tipo === "motivo") {
+      const lista = Object.entries(MOTIVOS).filter(([k]) => k !== "reprovado");
+      h += `<select data-motivo><option value="">Escolha o motivo</option>${lista.map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>`;
+    } else if (abertoEm.tipo === "semvisita") {
+      h += `<label><input type="checkbox" data-semvisita> Cliente não quis visitar</label>`;
+    } else {
+      h += `<div class="meta" style="margin-top:8px">Confirmar: ${esc(abertoEm.texto)}?</div>`;
+    }
+    h += `<div class="botoes"><button class="principal" data-ok>Confirmar</button><button data-cancelar>Cancelar</button></div>`;
+  } else {
+    h += `<div class="botoes">${(ACOES[c.etapa] ?? []).map(([t, para, tipo]) =>
+      `<button data-para="${para}" data-tipo="${tipo ?? ""}" data-texto="${esc(t)}">${t}</button>`).join("")}</div>`;
+  }
+  return h + "</div>";
+}
+
+function desenharFunil() {
+  const termo = $("busca-funil").value.trim().toLowerCase();
+  const so = termo.replace(/\D/g, "");
+  const lista = funil.filter((c) => !termo || (c.nome ?? "").toLowerCase().includes(termo) || (so && c.telefone.includes(so)));
+  const abertos = funil.filter((c) => !c.fechado_em).length;
+  $("contagem-funil").textContent = `· ${abertos} em andamento`;
+  $("quadro").innerHTML = COLUNAS.map((col) => {
+    const itens = lista.filter((c) => c.etapa === col.id);
+    return `<div class="coluna ${col.cor ?? ""}">
+      <h3>${col.num}. ${col.nome}<span class="n">${itens.length}</span></h3>
+      <div class="sub">${col.sub ?? ""}</div>
+      ${itens.map(cartaoFunil).join("")}
+    </div>`;
+  }).join("");
+}
+
+$("busca-funil").addEventListener("input", desenharFunil);
+
+async function mover(id, para, motivo, semVisita) {
+  const { error } = await db.rpc("crm_aluguel_mover", { p_contato: id, p_para: para, p_motivo: motivo ?? null, p_sem_visita: !!semVisita });
+  if (error) { aviso(error.message); return false; }
+  const col = COLUNAS.find((c) => c.id === para);
+  aviso(`Movido para ${col.num}. ${col.nome}`);
+  return true;
+}
+
+$("quadro").addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const cartao = b.closest(".cartao");
+  const id = cartao.dataset.id;
+
+  if (b.hasAttribute("data-cancelar")) { abertoEm = null; desenharFunil(); return; }
+
+  if (b.hasAttribute("data-ok")) {
+    let motivo = null, semVisita = false;
+    if (abertoEm.tipo === "motivo") {
+      motivo = cartao.querySelector("[data-motivo]").value;
+      if (!motivo) { aviso("Escolha o motivo"); return; }
+    }
+    if (abertoEm.tipo === "semvisita") {
+      semVisita = cartao.querySelector("[data-semvisita]").checked;
+      if (!semVisita) { aviso('Marque "Cliente não quis visitar"'); return; }
+    }
+    b.disabled = true;
+    const ok = await mover(id, abertoEm.para, motivo, semVisita);
+    if (!ok) { b.disabled = false; return; }
+    abertoEm = null;
+    carregarFunil();
+    return;
+  }
+
+  const para = b.dataset.para;
+  if (!para) return;
+  if (b.dataset.tipo) {
+    abertoEm = { id, para, tipo: b.dataset.tipo, texto: b.dataset.texto };
+    desenharFunil();
+    return;
+  }
+  cartao.querySelectorAll("button").forEach((x) => (x.disabled = true));
+  if (await mover(id, para)) carregarFunil();
+  else cartao.querySelectorAll("button").forEach((x) => (x.disabled = false));
 });
 
 db.auth.getSession().then(({ data }) => entrar(data.session));
