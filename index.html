@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRM Aluguel · Projetar</title>
+<style>
+  :root {
+    --fundo: #f6f4f1; --card: #ffffff; --borda: #e6e1da; --texto: #2a2522; --suave: #7a716a;
+    --destaque: #7a1f2b; --destaque-claro: #f3e7e8;
+    --verde: #2f6b2f; --verde-claro: #e6f1e1; --ambar: #8a5a0b; --ambar-claro: #faefd9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #17191c; --card: #202328; --borda: #30343a; --texto: #ecebe8; --suave: #9a9892;
+      --destaque: #e0808c; --destaque-claro: #3a2428;
+      --verde: #9fd39a; --verde-claro: #23331f; --ambar: #f0c070; --ambar-claro: #3a2f18;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); padding: 6px 12px; }
+  button:hover { border-color: var(--suave); }
+  button:disabled { opacity: .5; cursor: default; }
+  input { font: inherit; width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
+  .principal { background: var(--destaque); color: #fff; border-color: var(--destaque); }
+  @media (prefers-color-scheme: dark) { .principal { color: #17191c; } }
+
+  #login { max-width: 360px; margin: 12vh auto; padding: 0 16px; }
+  #login .card { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; padding: 24px; }
+  #login h1 { font-size: 20px; margin: 0 0 4px; }
+  #login p { color: var(--suave); margin: 0 0 18px; font-size: 14px; }
+  #login label { display: block; font-size: 13px; color: var(--suave); margin: 10px 0 4px; }
+  #login .principal { width: 100%; margin-top: 18px; padding: 10px; }
+  .erro { color: #b3261e; font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
+  header .marca { font-weight: 600; color: var(--destaque); }
+  nav { display: flex; gap: 4px; flex: 1; }
+  nav button { border: none; background: none; padding: 6px 12px; color: var(--suave); }
+  nav button.ativo { background: var(--destaque-claro); color: var(--destaque); font-weight: 600; }
+  .quem { font-size: 13px; color: var(--suave); display: flex; gap: 10px; align-items: center; }
+
+  main { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+  .topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .topo h2 { margin: 0; font-size: 20px; }
+  .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filtros button { white-space: nowrap; }
+  .filtros button.ativo { background: var(--destaque-claro); border-color: var(--destaque); color: var(--destaque); }
+  .lista { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; }
+  .item { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-top: 1px solid var(--borda); }
+  .item:first-child { border-top: none; }
+  .av { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; flex-shrink: 0; }
+  .av.novo { background: var(--verde-claro); color: var(--verde); }
+  .av.hist { background: var(--ambar-claro); color: var(--ambar); }
+  .info { flex: 1; min-width: 0; }
+  .nome { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .selo { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+  .selo.novo { background: var(--verde-claro); color: var(--verde); }
+  .selo.hist { background: var(--ambar-claro); color: var(--ambar); }
+  .selo.site { background: var(--destaque-claro); color: var(--destaque); }
+  .tempo { font-size: 13px; margin-top: 2px; }
+  .tempo.ok { color: var(--verde); }
+  .tempo.esperando { color: #b3261e; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .tempo.esperando { color: #f2a19a; } }
+  .meta { font-size: 13px; color: var(--suave); }
+  .meta a { color: var(--suave); }
+  .msg { font-size: 14px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .acoes { display: flex; gap: 6px; flex-shrink: 0; }
+  .vazio { padding: 40px 16px; text-align: center; color: var(--suave); }
+  .embreve { background: var(--card); border: 1px dashed var(--borda); border-radius: 14px; padding: 40px; text-align: center; color: var(--suave); }
+  .aviso { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--fundo); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .aviso.on { opacity: 1; }
+  @media (max-width: 640px) {
+    .item { flex-wrap: wrap; }
+    .acoes { width: 100%; }
+    .acoes button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login" hidden>
+  <div class="card">
+    <h1>CRM Aluguel</h1>
+    <p>Projetar Imóveis</p>
+    <form id="form-login">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" autocomplete="current-password" required>
+      <button class="principal" type="submit">Entrar</button>
+      <div class="erro" id="erro-login"></div>
+    </form>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <span class="marca">CRM Aluguel</span>
+    <nav id="abas">
+      <button data-aba="entrada" class="ativo">Entrada</button>
+      <button data-aba="funil">Funil</button>
+      <button data-aba="painel" data-admin hidden>Painel</button>
+    </nav>
+    <span class="quem"><span id="quem"></span><button id="sair">Sair</button></span>
+  </header>
+
+  <main>
+    <section id="aba-entrada">
+      <div class="topo">
+        <h2>Entrada <span class="meta" id="contagem"></span></h2>
+        <div class="filtros" id="filtros">
+          <button data-f="todos" class="ativo">Todos</button>
+          <button data-f="novos">Novos</button>
+          <button data-f="hist">Com histórico</button>
+          <button data-f="site">Cadastro no site</button>
+        </div>
+      </div>
+      <div class="lista" id="lista"><div class="vazio">Carregando…</div></div>
+    </section>
+
+    <section id="aba-funil" hidden>
+      <div class="embreve">O funil de aluguel é a próxima etapa da construção.</div>
+    </section>
+
+    <section id="aba-painel" hidden>
+      <div class="embreve">O painel vem depois do funil.</div>
+    </section>
+  </main>
+</div>
+
+<div class="aviso" id="aviso"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = "https://jgdbnkwhmesgjvsymgma.supabase.co";
+const SUPABASE_KEY = "sb_publishable_qvAy43WiHGUyk0aitpg_WQ_2xYfKEKu";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let usuario = null;      // { nome, papel }
+let contatos = [];
+let filtro = "todos";
+let timer = null;
+
+const $ = (id) => document.getElementById(id);
+
+function aviso(texto) {
+  const a = $("aviso");
+  a.textContent = texto;
+  a.classList.add("on");
+  setTimeout(() => a.classList.remove("on"), 2500);
+}
+
+function esc(t) {
+  return String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function iniciais(nome, tel) {
+  if (!nome) return tel.slice(-2);
+  return nome.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+}
+
+function telefoneBonito(t) {
+  const d = String(t).replace(/\D/g, "");
+  const m = d.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : "+" + d;
+}
+
+function quando(iso) {
+  const d = new Date(iso);
+  const min = Math.round((Date.now() - d) / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (d >= hoje) return `hoje ${hora}`;
+  const ontem = new Date(hoje); ontem.setDate(ontem.getDate() - 1);
+  if (d >= ontem) return `ontem ${hora}`;
+  return d.toLocaleDateString("pt-BR") + " " + hora;
+}
+
+function duracao(min) {
+  min = Math.max(0, Math.round(min));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h < 24) return m ? `${h}h ${m}min` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d} dia${d > 1 ? "s" : ""} ${h % 24}h`;
+}
+
+// Tempo de primeira resposta da atendente (ou quanto o cliente já está esperando).
+function linhaTempo(c) {
+  if (c.primeira_resposta_min != null) {
+    const exp = c.primeira_resposta_min_expediente;
+    const extra = exp != null && c.primeira_resposta_min - exp >= 30 ? ` (${duracao(exp)} em horário comercial)` : "";
+    return `<div class="tempo ok">1ª resposta: ${duracao(c.primeira_resposta_min)}${extra}</div>`;
+  }
+  if (c.cliente_falou_em) {
+    return `<div class="tempo esperando">Aguardando 1ª resposta há ${duracao((Date.now() - new Date(c.cliente_falou_em)) / 60000)}</div>`;
+  }
+  return "";
+}
+
+// ---------- login ----------
+
+async function entrar(sessao) {
+  if (!sessao) { $("login").hidden = false; $("app").hidden = true; return; }
+  const { data, error } = await db.from("crm_aluguel_usuarios").select("nome, papel").eq("user_id", sessao.user.id).maybeSingle();
+  if (error || !data) {
+    await db.auth.signOut();
+    $("erro-login").textContent = "Este login não tem acesso ao CRM de aluguel. Fale com o Marco.";
+    $("login").hidden = false; $("app").hidden = true;
+    return;
+  }
+  usuario = data;
+  $("quem").textContent = `${data.nome} · ${data.papel === "admin" ? "administrador" : "atendente"}`;
+  document.querySelectorAll("[data-admin]").forEach((el) => (el.hidden = data.papel !== "admin"));
+  $("login").hidden = true; $("app").hidden = false;
+  carregar();
+  clearInterval(timer);
+  timer = setInterval(carregar, 20000);
+}
+
+$("form-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("erro-login").textContent = "";
+  const { data, error } = await db.auth.signInWithPassword({ email: $("email").value.trim(), password: $("senha").value });
+  if (error) { $("erro-login").textContent = "E-mail ou senha incorretos."; return; }
+  entrar(data.session);
+});
+
+$("sair").addEventListener("click", async () => {
+  clearInterval(timer);
+  await db.auth.signOut();
+  usuario = null;
+  $("login").hidden = false; $("app").hidden = true;
+});
+
+// ---------- abas ----------
+
+$("abas").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-aba]");
+  if (!b) return;
+  if (b.dataset.aba === "painel" && usuario?.papel !== "admin") return;
+  document.querySelectorAll("#abas button").forEach((x) => x.classList.toggle("ativo", x === b));
+  ["entrada", "funil", "painel"].forEach((a) => ($("aba-" + a).hidden = a !== b.dataset.aba));
+});
+
+// ---------- entrada ----------
+
+async function carregar() {
+  const { data, error } = await db.from("crm_aluguel_contatos")
+    .select("id, telefone, nome, primeira_mensagem, primeira_mensagem_em, ultima_mensagem, ultima_mensagem_em, tem_historico, historico_detalhe, ultima_conversa_anterior, origem, imovel_link, cliente_falou_em, primeira_resposta_min, primeira_resposta_min_expediente")
+    .is("classificacao", null)
+    .order("primeira_mensagem_em", { ascending: false })
+    .limit(300);
+  if (error) { $("lista").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
+  contatos = data;
+  desenhar();
+}
+
+function desenhar() {
+  const visiveis = contatos.filter((c) =>
+    filtro === "todos" ||
+    (filtro === "novos" && !c.tem_historico) ||
+    (filtro === "hist" && c.tem_historico) ||
+    (filtro === "site" && c.origem === "cadastro_site"));
+  const novos = contatos.filter((c) => !c.tem_historico).length;
+  $("contagem").textContent = contatos.length ? `· ${contatos.length} aguardando (${novos} novos)` : "";
+  if (!visiveis.length) {
+    $("lista").innerHTML = `<div class="vazio">${contatos.length ? "Nenhum contato neste filtro." : "Nenhum cliente esperando análise."}</div>`;
+    return;
+  }
+  $("lista").innerHTML = visiveis.map((c) => {
+    const tipo = c.tem_historico ? "hist" : "novo";
+    const selo = c.tem_historico ? "Cliente já com histórico" : "Novo";
+    const detalhe = c.tem_historico
+      ? ` · ${esc(c.historico_detalhe ?? "")}${c.ultima_conversa_anterior ? ` · última conversa ${new Date(c.ultima_conversa_anterior).toLocaleDateString("pt-BR")}` : ""}`
+      : "";
+    const site = c.origem === "cadastro_site";
+    const msg = c.ultima_mensagem || (site ? "Mensagem automática enviada · cliente ainda não respondeu" : c.primeira_mensagem);
+    const imovel = c.imovel_link ? ` · <a href="${esc(c.imovel_link)}" target="_blank" rel="noopener">ver imóvel</a>` : "";
+    return `<div class="item" data-id="${c.id}">
+      <div class="av ${tipo}">${esc(iniciais(c.nome, c.telefone))}</div>
+      <div class="info">
+        <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}<span class="selo ${tipo}">${selo}</span>${site ? '<span class="selo site">Cadastro no site</span>' : ""}</div>
+        <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a> · ${site ? "cadastrou" : "chegou"} ${quando(c.primeira_mensagem_em)}${imovel}${detalhe}</div>
+        <div class="msg" title="${esc(msg)}">"${esc(msg)}"</div>
+        ${linhaTempo(c)}
+      </div>
+      <div class="acoes">
+        <button data-c="aluguel">Aluguel</button>
+        <button data-c="vendas">Vendas</button>
+        <button data-c="outros">Outros</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+$("filtros").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-f]");
+  if (!b) return;
+  filtro = b.dataset.f;
+  document.querySelectorAll("#filtros button").forEach((x) => x.classList.toggle("ativo", x === b));
+  desenhar();
+});
+
+$("lista").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-c]");
+  if (!b) return;
+  const item = b.closest(".item");
+  item.querySelectorAll("button").forEach((x) => (x.disabled = true));
+  const { error } = await db.rpc("crm_aluguel_classificar", { p_contato: item.dataset.id, p_classe: b.dataset.c });
+  if (error) {
+    aviso("Não deu certo: " + error.message);
+    item.querySelectorAll("button").forEach((x) => (x.disabled = false));
+    return;
+  }
+  const nomes = { aluguel: "o funil de aluguel", vendas: "Vendas", outros: "Outros" };
+  aviso(`Enviado para ${nomes[b.dataset.c]}`);
+  contatos = contatos.filter((c) => c.id !== item.dataset.id);
+  desenhar();
+});
+
+db.auth.getSession().then(({ data }) => entrar(data.session));
+</script>
+</body>
+</html>
