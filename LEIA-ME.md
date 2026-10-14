@@ -50,6 +50,12 @@ Colunas: 1 Atendimento · 2 Visita · 2.1 Visita realizada · 2.2 Não realizada
 
 Entrada tem 4 botões: Aluguel, Vendas, Outros, Suporte (boleto, manutenção etc.).
 
+**Ficha é com a Thainara:** lead de outra atendente (Milene) que vai para "3. Ficha" passa sozinho para o WhatsApp
+da Thainara (`instancia` = `crm_aluguel_config.instancia_ficha`), guardando `transferido_de` / `transferido_em`.
+O cartão ganha o selo roxo "Atendido pela Milene"; a Milene continua vendo o cliente, mas só acompanha
+(quem move é a Thainara). Mensagens do cliente no WhatsApp da Milene atualizam o mesmo cartão (não criam outro).
+No Painel, filtrar pela Milene inclui os leads que ela atendeu e transferiu.
+
 ## Painel (só administrador — função `crm_aluguel_painel(inicio, fim)`)
 Períodos: hoje, ontem, 7 dias, este mês, 30 dias (dias em horário de Brasília). Mostra: como está o funil agora,
 entrada no período (novos, com histórico, cadastro no site, para onde foram), 1ª resposta (média em horário comercial

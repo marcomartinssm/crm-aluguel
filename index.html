@@ -104,6 +104,7 @@
   .selo.site { background: var(--destaque-claro); color: var(--destaque); }
   .selo.dup { background: #b3261e; color: #fff; }
   .selo.voltou { background: #1f5fbf; color: #fff; }
+  .selo.transf { background: #6b3fa0; color: #fff; }
   .voltaram { border: 2px solid #1f5fbf; border-radius: 14px; margin-bottom: 16px; background: var(--card); }
   .voltaram .cab { padding: 12px 16px 4px; font-weight: 600; }
   .voltaram .cab span { font-weight: 400; color: var(--suave); font-size: 13px; }
@@ -211,6 +212,9 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // WhatsApp (instância da Evolution) de cada atendente — manter igual ao ATENDENTES da função crm-aluguel-entrada
 const ATENDENTES = { ALUGUELARA: "Thainara", central: "Milene" };
+// Quem analisa as fichas: lead de outra atendente que vai para "3. Ficha" é transferido para ela
+// (igual a crm_aluguel_config.instancia_ficha no banco).
+const INSTANCIA_FICHA = "ALUGUELARA";
 
 let usuario = null;      // { nome, papel }
 let filtroAtendente = ""; // admin: "" = todas
@@ -301,7 +305,7 @@ function linhaTempo(c) {
 
 async function entrar(sessao) {
   if (!sessao) { $("login").hidden = false; $("app").hidden = true; return; }
-  const { data, error } = await db.from("crm_aluguel_usuarios").select("nome, papel").eq("user_id", sessao.user.id).maybeSingle();
+  const { data, error } = await db.from("crm_aluguel_usuarios").select("nome, papel, instancia").eq("user_id", sessao.user.id).maybeSingle();
   if (error || !data) {
     await db.auth.signOut();
     $("erro-login").textContent = "Este login não tem acesso ao CRM de aluguel. Fale com o Marco.";
@@ -563,7 +567,7 @@ async function carregarPainel() {
     ${caixa("Visitas marcadas", visitasMarcadas)}
     ${caixa("Visitas realizadas", realizadas)}
     ${caixa("Faltaram", faltas)}
-    ${caixa("Fichas enviadas", fichas, d.sem_visita ? `${d.sem_visita} sem visita` : "")}
+    ${caixa("Fichas enviadas", fichas, [d.sem_visita ? `${d.sem_visita} sem visita` : "", d.transferidos ? `${d.transferidos} transferida${d.transferidos > 1 ? "s" : ""} para a ${ATENDENTES[INSTANCIA_FICHA]}` : ""].filter(Boolean).join(" · "))}
     ${caixa("Aprovadas", aprov)}
     ${caixa("Reprovadas", reprov)}
     ${caixa("Realizados", n(mv, "realizado"))}
@@ -645,7 +649,7 @@ let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / c
 async function carregarFunil() {
   const desde = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data, error } = await comAtendente(db.from("crm_aluguel_contatos")
-    .select("id, instancia, telefone, nome, origem, imovel_link, voltou_em, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
+    .select("id, instancia, transferido_de, telefone, nome, origem, imovel_link, voltou_em, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
     .eq("classificacao", "aluguel"))
     .or(`fechado_em.is.null,fechado_em.gte.${desde},voltou_em.not.is.null`)
     .order("etapa_em", { ascending: true })
@@ -660,7 +664,7 @@ function cartaoFunil(c) {
   const dias = (Date.now() - new Date(c.etapa_em)) / 60000;
   let h = `<div class="cartao" data-id="${c.id}">
     <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}</div>
-    <div>${c.voltou_em ? '<span class="selo voltou">Voltou a falar</span> ' : ""}${seloDuplicado(c)}${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
+    <div>${c.transferido_de ? `<span class="selo transf" title="Atendido pela ${esc(ATENDENTES[c.transferido_de] ?? c.transferido_de)} e transferido para a ficha">Atendido pela ${esc(ATENDENTES[c.transferido_de] ?? c.transferido_de)}</span> ` : ""}${c.voltou_em ? '<span class="selo voltou">Voltou a falar</span> ' : ""}${seloDuplicado(c)}${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
     <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a>${c.imovel_link ? ` · <a href="${esc(c.imovel_link)}" target="_blank" rel="noopener">imóvel</a>` : ""}</div>
     <div class="meta">${c.fechado_em ? "nesta etapa desde " + new Date(c.etapa_em).toLocaleDateString("pt-BR") : "há " + duracao(dias) + " nesta etapa"}</div>`;
   if (c.etapa === "realizado" && c.entrou_funil_em) {
@@ -676,13 +680,25 @@ function cartaoFunil(c) {
       h += `<select data-motivo><option value="">Escolha o motivo</option>${lista.map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>`;
     } else if (abertoEm.tipo === "semvisita") {
       h += `<label><input type="checkbox" data-semvisita> Cliente não quis visitar</label>`;
+      if (c.instancia !== INSTANCIA_FICHA) h += `<div class="meta" style="margin-top:6px">O cliente passa para a ${esc(ATENDENTES[INSTANCIA_FICHA])}.</div>`;
+    } else if (abertoEm.para === "ficha") {
+      h += `<div class="meta" style="margin-top:8px">Enviar a ficha e passar o cliente para a ${esc(ATENDENTES[INSTANCIA_FICHA])}?</div>`;
     } else {
       h += `<div class="meta" style="margin-top:8px">Confirmar: ${esc(abertoEm.texto)}?</div>`;
     }
     h += `<div class="botoes"><button class="principal" data-ok>Confirmar</button><button data-cancelar>Cancelar</button></div>`;
+  } else if (usuario?.papel !== "admin" && usuario?.instancia && c.instancia !== usuario.instancia) {
+    // atendente que transferiu só acompanha
+    h += `<div class="meta" style="margin-top:8px">Com a ${esc(ATENDENTES[c.instancia] ?? c.instancia)} — só acompanhamento</div>`;
   } else {
-    h += `<div class="botoes">${(ACOES[c.etapa] ?? []).map(([t, para, tipo]) =>
-      `<button data-para="${para}" data-tipo="${tipo ?? ""}" data-texto="${esc(t)}">${t}</button>`).join("")}</div>`;
+    const transfere = c.instancia !== INSTANCIA_FICHA;
+    h += `<div class="botoes">${(ACOES[c.etapa] ?? []).map(([t, para, tipo]) => {
+      if (para === "ficha" && transfere) {
+        t = `${t} → ${ATENDENTES[INSTANCIA_FICHA]}`;
+        tipo = tipo || "confirmar";
+      }
+      return `<button data-para="${para}" data-tipo="${tipo ?? ""}" data-texto="${esc(t)}">${t}</button>`;
+    }).join("")}</div>`;
   }
   return h + "</div>";
 }
@@ -709,7 +725,10 @@ async function mover(id, para, motivo, semVisita) {
   const { error } = await db.rpc("crm_aluguel_mover", { p_contato: id, p_para: para, p_motivo: motivo ?? null, p_sem_visita: !!semVisita });
   if (error) { aviso(error.message); return false; }
   const col = COLUNAS.find((c) => c.id === para);
-  aviso(`Movido para ${col.num}. ${col.nome}`);
+  const card = funil.find((c) => c.id === id);
+  aviso(para === "ficha" && card && card.instancia !== INSTANCIA_FICHA
+    ? `Ficha enviada — cliente passou para a ${ATENDENTES[INSTANCIA_FICHA]}`
+    : `Movido para ${col.num}. ${col.nome}`);
   return true;
 }
 

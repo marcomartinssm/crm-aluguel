@@ -266,8 +266,10 @@ async function receberMensagem(instancia: string, d: any) {
   const nome = (!key.fromMe && d.pushName && d.pushName !== telefone) ? String(d.pushName).slice(0, 120) : null;
   const imovelLink = cadastroSite ? (textoCompleto.match(LINK_IMOVEL)?.[0] ?? null) : null;
 
+  // inclui os clientes que esta atendente transferiu (ex.: Milene → Thainara na ficha): não viram cartão novo
   const { data: existentes } = await db.from("crm_aluguel_contatos").select("*")
-    .eq("instancia", instancia).eq("telefone", telefone).order("criado_em", { ascending: false }).limit(5);
+    .or(`instancia.eq.${instancia},transferido_de.eq.${instancia}`)
+    .eq("telefone", telefone).order("criado_em", { ascending: false }).limit(5);
 
   const reabrirAposDias = await configNumero("reabrir_apos_dias", 7);
   const aberto = (existentes ?? []).find(ABERTO);
@@ -278,7 +280,8 @@ async function receberMensagem(instancia: string, d: any) {
   // não cadastra de novo, só atualiza a última mensagem.
   const alvo = aberto ?? (quieto < reabrirAposDias ? recente : null);
   if (alvo) {
-    const mudancas: Record<string, unknown> = { jid, nome: alvo.nome ?? nome, atualizado_em: new Date().toISOString() };
+    const mudancas: Record<string, unknown> = { nome: alvo.nome ?? nome, atualizado_em: new Date().toISOString() };
+    if (alvo.instancia === instancia) mudancas.jid = jid; // conversa da atendente que está com o cliente
     if (cadastroSite) {
       // cliente já conhecido que se cadastrou de novo no site: guarda o imóvel, sem trocar a última fala dele
       if (imovelLink) mudancas.imovel_link = imovelLink;
