@@ -41,6 +41,12 @@ Colunas: 1 Atendimento · 2 Visita · 2.1 Visita realizada · 2.2 Não realizada
 
 Entrada tem 4 botões: Aluguel, Vendas, Outros, Suporte (boleto, manutenção etc.).
 
+## Painel (só administrador — função `crm_aluguel_painel(inicio, fim)`)
+Períodos: hoje, ontem, 7 dias, este mês, 30 dias (dias em horário de Brasília). Mostra: como está o funil agora,
+entrada no período (novos, com histórico, cadastro no site, para onde foram), 1ª resposta (média em horário comercial
+e corrida, % em até 5 min, sem resposta), movimento do funil, taxas, tempo médio até fechar e perdas por motivo + etapa.
+A função recusa quem não é admin, então a Thainara não consegue ver os números nem chamando direto.
+
 ## Dar acesso a alguém
 1. Supabase → Authentication → Users → Add user (e-mail e senha, marcar "Auto Confirm").
 2. Rodar no SQL:

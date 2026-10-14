@@ -69,6 +69,22 @@
   .cartao label { display: flex; gap: 6px; align-items: center; font-size: 12px; margin-top: 8px; }
   .motivo { font-size: 12px; margin-top: 4px; padding: 3px 6px; border-radius: 6px; background: var(--fundo); color: var(--suave); }
   .busca { max-width: 260px; }
+
+  /* painel */
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .num { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; }
+  .num .rot { font-size: 13px; color: var(--suave); }
+  .num .val { font-size: 24px; font-weight: 600; margin-top: 2px; }
+  .num .det { font-size: 12px; color: var(--suave); }
+  .num.destaque { border-color: var(--destaque); }
+  .secao-painel { font-size: 15px; font-weight: 600; margin: 22px 0 10px; }
+  .barra-linha { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 6px 0; border-top: 1px solid var(--borda); }
+  .barra-linha:first-child { border-top: none; }
+  .barra-linha .txt { width: 300px; flex-shrink: 0; }
+  .barra-linha .trilho { flex: 1; }
+  .barra-linha .barra { height: 10px; border-radius: 5px; background: var(--destaque); }
+  .barra-linha .qtd { width: 32px; text-align: right; font-weight: 600; }
+  @media (max-width: 640px) { .barra-linha .txt { width: 150px; } }
   .topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
   .topo h2 { margin: 0; font-size: 20px; }
   .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -157,7 +173,17 @@
     </section>
 
     <section id="aba-painel" hidden>
-      <div class="embreve">O painel vem depois do funil.</div>
+      <div class="topo">
+        <h2>Painel</h2>
+        <div class="filtros" id="periodos">
+          <button data-p="hoje" class="ativo">Hoje</button>
+          <button data-p="ontem">Ontem</button>
+          <button data-p="7d">7 dias</button>
+          <button data-p="mes">Este mês</button>
+          <button data-p="30d">30 dias</button>
+        </div>
+      </div>
+      <div id="painel"><div class="vazio">Carregando…</div></div>
     </section>
   </main>
 </div>
@@ -279,6 +305,7 @@ $("abas").addEventListener("click", (e) => {
   ["entrada", "funil", "painel"].forEach((a) => ($("aba-" + a).hidden = a !== b.dataset.aba));
   document.querySelector("main").classList.toggle("largo", b.dataset.aba === "funil");
   if (b.dataset.aba === "funil") carregarFunil();
+  if (b.dataset.aba === "painel") carregarPainel();
 });
 
 // ---------- entrada ----------
@@ -356,6 +383,114 @@ $("lista").addEventListener("click", async (e) => {
   aviso(`Enviado para ${nomes[b.dataset.c]}`);
   contatos = contatos.filter((c) => c.id !== item.dataset.id);
   desenhar();
+});
+
+// ---------- painel (só administrador) ----------
+
+let periodo = "hoje";
+
+// Início do dia em Brasília (UTC-3), em ISO
+function inicioDiaBR(deslocDias = 0) {
+  const agora = new Date(Date.now() - 3 * 3600000);
+  const d = Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate() + deslocDias, 3);
+  return new Date(d);
+}
+
+function janela(p) {
+  const amanha = inicioDiaBR(1);
+  if (p === "hoje") return [inicioDiaBR(0), amanha];
+  if (p === "ontem") return [inicioDiaBR(-1), inicioDiaBR(0)];
+  if (p === "7d") return [inicioDiaBR(-6), amanha];
+  if (p === "30d") return [inicioDiaBR(-29), amanha];
+  const agora = new Date(Date.now() - 3 * 3600000);
+  return [new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), 1, 3)), amanha];
+}
+
+function pct(a, b) { return b ? Math.round((a / b) * 100) + "%" : "–"; }
+
+function caixa(rot, val, det = "", destaque = false) {
+  return `<div class="num${destaque ? " destaque" : ""}"><div class="rot">${rot}</div><div class="val">${val}</div>${det ? `<div class="det">${det}</div>` : ""}</div>`;
+}
+
+async function carregarPainel() {
+  if (usuario?.papel !== "admin") return;
+  const [ini, fim] = janela(periodo);
+  const { data: d, error } = await db.rpc("crm_aluguel_painel", { p_inicio: ini.toISOString(), p_fim: fim.toISOString() });
+  if (error) { $("painel").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
+
+  const et = d.agora.etapas, mv = d.movimento, en = d.entrada, rs = d.resposta, fe = d.fechamento;
+  const cl = en.classificados;
+  const n = (o, k) => o[k] ?? 0;
+  const visitasMarcadas = n(mv, "visita");
+  const realizadas = n(mv, "visita_realizada"), faltas = n(mv, "visita_nao_realizada");
+  const fichas = n(mv, "ficha"), aprov = n(mv, "aprovado"), reprov = n(mv, "reprovado");
+  const foiAluguel = n(cl, "atendimento");
+
+  let h = `<div class="secao-painel">Como está agora</div><div class="grade">
+    ${caixa("Na Entrada", d.agora.entrada, "esperando a Thainara classificar")}
+    ${caixa("1. Atendimento", n(et, "atendimento"))}
+    ${caixa("2. Visita agendada", n(et, "visita"))}
+    ${caixa("2.1 Visitou", n(et, "visita_realizada"))}
+    ${caixa("2.2 Faltou", n(et, "visita_nao_realizada"))}
+    ${caixa("3. Ficha em análise", n(et, "ficha"))}
+    ${caixa("3.1 Aprovado", n(et, "aprovado"), "aguardando fechar")}
+  </div>`;
+
+  h += `<div class="secao-painel">Entrada no período</div><div class="grade">
+    ${caixa("Novos contatos", en.novos_contatos, `${en.sem_historico} novos · ${en.com_historico} com histórico`)}
+    ${caixa("Cadastro no site", en.cadastro_site)}
+    ${caixa("Foram para aluguel", foiAluguel)}
+    ${caixa("Vendas", n(cl, "vendas"))}
+    ${caixa("Suporte", n(cl, "suporte"))}
+    ${caixa("Outros", n(cl, "outros"))}
+  </div>`;
+
+  h += `<div class="secao-painel">Primeira resposta da Thainara</div><div class="grade">
+    ${caixa("Média em horário comercial", rs.media_expediente != null ? duracao(rs.media_expediente) : "–", `corrido: ${rs.media_min != null ? duracao(rs.media_min) : "–"}`, true)}
+    ${caixa("Respondidos em até 5 min", pct(rs.ate_5min, rs.respondidos), `${rs.ate_5min} de ${rs.respondidos}`)}
+    ${caixa("Clientes que falaram", rs.clientes)}
+    ${caixa("Ainda sem resposta", rs.aguardando)}
+  </div>`;
+
+  h += `<div class="secao-painel">Movimento do funil no período</div><div class="grade">
+    ${caixa("Visitas marcadas", visitasMarcadas)}
+    ${caixa("Visitas realizadas", realizadas)}
+    ${caixa("Faltaram", faltas)}
+    ${caixa("Fichas enviadas", fichas, d.sem_visita ? `${d.sem_visita} sem visita` : "")}
+    ${caixa("Aprovadas", aprov)}
+    ${caixa("Reprovadas", reprov)}
+    ${caixa("Realizados", n(mv, "realizado"))}
+    ${caixa("Perdidos", n(mv, "perdido"))}
+    ${caixa("Descartados", n(mv, "descartado"))}
+  </div>`;
+
+  h += `<div class="secao-painel">Taxas e tempo até fechar</div><div class="grade">
+    ${caixa("Lead vira visita", pct(visitasMarcadas, foiAluguel))}
+    ${caixa("Comparecimento", pct(realizadas, realizadas + faltas))}
+    ${caixa("Visita vira ficha", pct(fichas, realizadas))}
+    ${caixa("Aprovação", pct(aprov, aprov + reprov))}
+    ${caixa("Lead vira contrato", pct(n(mv, "realizado"), foiAluguel))}
+    ${caixa("Tempo até fechar", fe.media_dias != null ? `${String(fe.media_dias).replace(".", ",")} dias` : "–", `média de ${fe.realizados} contrato${fe.realizados === 1 ? "" : "s"}`, true)}
+  </div>`;
+
+  const maior = Math.max(1, ...d.perdas.map((p) => p.n));
+  h += `<div class="secao-painel">Por que perdemos · motivo e etapa onde parou</div><div class="lista" style="padding:4px 14px">${
+    d.perdas.length ? d.perdas.map((p) => `<div class="barra-linha">
+      <span class="txt">${esc(MOTIVOS[p.motivo] ?? p.motivo)} · ${esc(NOME_ETAPA[p.etapa] ?? p.etapa)}</span>
+      <span class="trilho"><div class="barra" style="width:${Math.round((p.n / maior) * 100)}%"></div></span>
+      <span class="qtd">${p.n}</span></div>`).join("")
+    : '<div class="vazio" style="padding:16px">Nenhuma perda no período.</div>'}</div>
+    <p class="meta">Taxas comparam o que aconteceu dentro do período escolhido. Horário comercial: seg a sex 8h–12h e 13h30–18h, sáb 8h–12h.</p>`;
+
+  $("painel").innerHTML = h;
+}
+
+$("periodos").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-p]");
+  if (!b) return;
+  periodo = b.dataset.p;
+  document.querySelectorAll("#periodos button").forEach((x) => x.classList.toggle("ativo", x === b));
+  carregarPainel();
 });
 
 // ---------- funil ----------
