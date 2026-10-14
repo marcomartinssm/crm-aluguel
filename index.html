@@ -102,6 +102,8 @@
   .selo.novo { background: var(--verde-claro); color: var(--verde); }
   .selo.hist { background: var(--ambar-claro); color: var(--ambar); }
   .selo.site { background: var(--destaque-claro); color: var(--destaque); }
+  .selo.quem { background: var(--fundo); color: var(--suave); border: 1px solid var(--borda); }
+  #atendente { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
   .tempo { font-size: 13px; margin-top: 2px; }
   .tempo.ok { color: var(--verde); }
   .tempo.esperando { color: #b3261e; font-weight: 600; }
@@ -146,7 +148,12 @@
       <button data-aba="funil">Funil</button>
       <button data-aba="painel" data-admin hidden>Painel</button>
     </nav>
-    <span class="quem"><span id="quem"></span><button id="sair">Sair</button></span>
+    <span class="quem">
+      <select id="atendente" data-admin hidden aria-label="Atendente">
+        <option value="">Todas as atendentes</option>
+      </select>
+      <span id="quem"></span><button id="sair">Sair</button>
+    </span>
   </header>
 
   <main>
@@ -196,7 +203,11 @@ const SUPABASE_URL = "https://jgdbnkwhmesgjvsymgma.supabase.co";
 const SUPABASE_KEY = "sb_publishable_qvAy43WiHGUyk0aitpg_WQ_2xYfKEKu";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// WhatsApp (instância da Evolution) de cada atendente — manter igual ao ATENDENTES da função crm-aluguel-entrada
+const ATENDENTES = { ALUGUELARA: "Thainara", central: "Milene" };
+
 let usuario = null;      // { nome, papel }
+let filtroAtendente = ""; // admin: "" = todas
 let contatos = [];
 let filtro = "todos";
 let timer = null;
@@ -238,6 +249,16 @@ function quando(iso) {
   return d.toLocaleDateString("pt-BR") + " " + hora;
 }
 
+// Quando o admin vê todas, cada cartão mostra de quem é o cliente.
+function seloAtendente(c) {
+  return usuario?.papel === "admin" && !filtroAtendente
+    ? `<span class="selo quem">${esc(ATENDENTES[c.instancia] ?? c.instancia)}</span>` : "";
+}
+
+function comAtendente(q) {
+  return filtroAtendente ? q.eq("instancia", filtroAtendente) : q;
+}
+
 function duracao(min) {
   min = Math.max(0, Math.round(min));
   if (min < 60) return `${min} min`;
@@ -274,6 +295,8 @@ async function entrar(sessao) {
   usuario = data;
   $("quem").textContent = `${data.nome} · ${data.papel === "admin" ? "administrador" : "atendente"}`;
   document.querySelectorAll("[data-admin]").forEach((el) => (el.hidden = data.papel !== "admin"));
+  $("atendente").innerHTML = '<option value="">Todas as atendentes</option>' +
+    Object.entries(ATENDENTES).map(([inst, nome]) => `<option value="${inst}">${nome}</option>`).join("");
   $("login").hidden = true; $("app").hidden = false;
   carregar();
   clearInterval(timer);
@@ -286,6 +309,13 @@ $("form-login").addEventListener("submit", async (e) => {
   const { data, error } = await db.auth.signInWithPassword({ email: $("email").value.trim(), password: $("senha").value });
   if (error) { $("erro-login").textContent = "E-mail ou senha incorretos."; return; }
   entrar(data.session);
+});
+
+$("atendente").addEventListener("change", (e) => {
+  filtroAtendente = e.target.value;
+  carregar();
+  if (!$("aba-funil").hidden) carregarFunil();
+  if (!$("aba-painel").hidden) carregarPainel();
 });
 
 $("sair").addEventListener("click", async () => {
@@ -311,9 +341,9 @@ $("abas").addEventListener("click", (e) => {
 // ---------- entrada ----------
 
 async function carregar() {
-  const { data, error } = await db.from("crm_aluguel_contatos")
-    .select("id, telefone, nome, primeira_mensagem, primeira_mensagem_em, ultima_mensagem, ultima_mensagem_em, tem_historico, historico_detalhe, ultima_conversa_anterior, origem, imovel_link, cliente_falou_em, primeira_resposta_min, primeira_resposta_min_expediente")
-    .is("classificacao", null)
+  const { data, error } = await comAtendente(db.from("crm_aluguel_contatos")
+    .select("id, instancia, telefone, nome, primeira_mensagem, primeira_mensagem_em, ultima_mensagem, ultima_mensagem_em, tem_historico, historico_detalhe, ultima_conversa_anterior, origem, imovel_link, cliente_falou_em, primeira_resposta_min, primeira_resposta_min_expediente")
+    .is("classificacao", null))
     .order("primeira_mensagem_em", { ascending: false })
     .limit(300);
   if (error) { $("lista").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
@@ -345,7 +375,7 @@ function desenhar() {
     return `<div class="item" data-id="${c.id}">
       <div class="av ${tipo}">${esc(iniciais(c.nome, c.telefone))}</div>
       <div class="info">
-        <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}<span class="selo ${tipo}">${selo}</span>${site ? '<span class="selo site">Cadastro no site</span>' : ""}</div>
+        <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}<span class="selo ${tipo}">${selo}</span>${seloAtendente(c)}${site ? '<span class="selo site">Cadastro no site</span>' : ""}</div>
         <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a> · ${site ? "cadastrou" : "chegou"} ${quando(c.primeira_mensagem_em)}${imovel}${detalhe}</div>
         <div class="msg" title="${esc(msg)}">"${esc(msg)}"</div>
         ${linhaTempo(c)}
@@ -415,7 +445,7 @@ function caixa(rot, val, det = "", destaque = false) {
 async function carregarPainel() {
   if (usuario?.papel !== "admin") return;
   const [ini, fim] = janela(periodo);
-  const { data: d, error } = await db.rpc("crm_aluguel_painel", { p_inicio: ini.toISOString(), p_fim: fim.toISOString() });
+  const { data: d, error } = await db.rpc("crm_aluguel_painel", { p_inicio: ini.toISOString(), p_fim: fim.toISOString(), p_instancia: filtroAtendente || null });
   if (error) { $("painel").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
 
   const et = d.agora.etapas, mv = d.movimento, en = d.entrada, rs = d.resposta, fe = d.fechamento;
@@ -427,7 +457,7 @@ async function carregarPainel() {
   const foiAluguel = n(cl, "atendimento");
 
   let h = `<div class="secao-painel">Como está agora</div><div class="grade">
-    ${caixa("Na Entrada", d.agora.entrada, "esperando a Thainara classificar")}
+    ${caixa("Na Entrada", d.agora.entrada, "esperando classificação")}
     ${caixa("1. Atendimento", n(et, "atendimento"))}
     ${caixa("2. Visita agendada", n(et, "visita"))}
     ${caixa("2.1 Visitou", n(et, "visita_realizada"))}
@@ -445,7 +475,7 @@ async function carregarPainel() {
     ${caixa("Outros", n(cl, "outros"))}
   </div>`;
 
-  h += `<div class="secao-painel">Primeira resposta da Thainara</div><div class="grade">
+  h += `<div class="secao-painel">Primeira resposta ${filtroAtendente ? "da " + esc(ATENDENTES[filtroAtendente]) : "das atendentes"}</div><div class="grade">
     ${caixa("Média em horário comercial", rs.media_expediente != null ? duracao(rs.media_expediente) : "–", `corrido: ${rs.media_min != null ? duracao(rs.media_min) : "–"}`, true)}
     ${caixa("Respondidos em até 5 min", pct(rs.ate_5min, rs.respondidos), `${rs.ate_5min} de ${rs.respondidos}`)}
     ${caixa("Clientes que falaram", rs.clientes)}
@@ -537,9 +567,9 @@ let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / c
 
 async function carregarFunil() {
   const desde = new Date(Date.now() - 30 * 86400000).toISOString();
-  const { data, error } = await db.from("crm_aluguel_contatos")
-    .select("id, telefone, nome, origem, imovel_link, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
-    .eq("classificacao", "aluguel")
+  const { data, error } = await comAtendente(db.from("crm_aluguel_contatos")
+    .select("id, instancia, telefone, nome, origem, imovel_link, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
+    .eq("classificacao", "aluguel"))
     .or(`fechado_em.is.null,fechado_em.gte.${desde}`)
     .order("etapa_em", { ascending: true })
     .limit(1000);
@@ -552,7 +582,7 @@ function cartaoFunil(c) {
   const dias = (Date.now() - new Date(c.etapa_em)) / 60000;
   let h = `<div class="cartao" data-id="${c.id}">
     <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}</div>
-    <div>${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
+    <div>${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
     <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a>${c.imovel_link ? ` · <a href="${esc(c.imovel_link)}" target="_blank" rel="noopener">imóvel</a>` : ""}</div>
     <div class="meta">${c.fechado_em ? "nesta etapa desde " + new Date(c.etapa_em).toLocaleDateString("pt-BR") : "há " + duracao(dias) + " nesta etapa"}</div>`;
   if (c.etapa === "realizado" && c.entrou_funil_em) {

@@ -1,5 +1,6 @@
 // CRM de Aluguel — porta de entrada.
-// A Evolution avisa esta função a cada mensagem que chega no WhatsApp da Thainara (ALUGUELARA).
+// A Evolution avisa esta função a cada mensagem que chega no WhatsApp das atendentes de locação
+// (Thainara = ALUGUELARA, Milene = central).
 // Cliente que começa conversa nova cai na tela "Entrada" (crm_aluguel_contatos com classificacao = null),
 // marcado como "Novo" ou "Cliente já com histórico".
 //
@@ -18,8 +19,10 @@ const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const db = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
-// Instâncias que alimentam o CRM de aluguel. Para incluir outra atendente, acrescente aqui.
-const INSTANCIAS = new Set(["ALUGUELARA"]);
+// Instâncias que alimentam o CRM de aluguel e o nome de quem atende cada uma.
+// Para incluir outra atendente, acrescente aqui (e na lista ATENDENTES da tela).
+const ATENDENTES: Record<string, string> = { ALUGUELARA: "Thainara", central: "Milene" };
+const INSTANCIAS = new Set(Object.keys(ATENDENTES));
 
 // Mensagens mais antigas que isso contam como "conversa anterior" (histórico).
 const JANELA_HISTORICO_HORAS = 24;
@@ -181,7 +184,7 @@ async function verificarHistorico(instancia: string, jid: string, telefone: stri
 
   const evoRes = await conversaAnteriorNaEvolution(instancia, jid, agoraSeg).catch(() => ({ maisRecenteAntiga: null, total: 0 }));
   if (evoRes.maisRecenteAntiga) {
-    motivos.push("já conversou com a Thainara");
+    motivos.push(`já conversou com a ${ATENDENTES[instancia] ?? "atendente"}`);
     ultima = evoRes.maisRecenteAntiga;
   }
 
@@ -216,10 +219,10 @@ async function verificarHistorico(instancia: string, jid: string, telefone: stri
 
 // ---------- webhook ----------
 
-// Mensagem automática que sai do WhatsApp da Thainara quando alguém se cadastra no site
+// Mensagem automática que sai do WhatsApp da atendente quando alguém se cadastra no site
 // ("Olá {nome}, aqui é a Thainara, da Projetar Imóveis. Vi que você se cadastrou em nosso site ... /imovel/...").
-// Comparação sem acentos e em minúsculas; nome e imóvel variam.
-const PADRAO_CADASTRO_SITE = /aqui e a thainara.*cadastrou em nosso site/;
+// Comparação sem acentos e em minúsculas; nome do cliente, da atendente e imóvel variam.
+const PADRAO_CADASTRO_SITE = /aqui e a [a-z]+.*cadastrou em nosso site/;
 const LINK_IMOVEL = /https?:\/\/(www\.)?projetarimoveis\.com\.br\/\S+/i;
 
 function semAcento(t: string) {
@@ -244,7 +247,7 @@ async function receberMensagem(instancia: string, d: any) {
   const texto = textoCompleto.slice(0, 500);
   if (!texto) return { ignorado: "mensagem sem conteúdo (reação/sistema)" };
 
-  // Mensagem da própria Thainara: a automática do cadastro do site abre um contato;
+  // Mensagem da própria atendente: a automática do cadastro do site abre um contato;
   // qualquer outra serve para medir o tempo de primeira resposta.
   const cadastroSite = !!key.fromMe && PADRAO_CADASTRO_SITE.test(semAcento(textoCompleto));
   const agoraSeg = Number(d.messageTimestamp ?? 0) || Math.floor(Date.now() / 1000);
@@ -254,7 +257,7 @@ async function receberMensagem(instancia: string, d: any) {
   if (key.fromMe && !cadastroSite) return registrarResposta(instancia, jid, telefone, agoraSeg);
   if (!telefone) return { ignorado: "sem número" };
   if ((await numerosInternos()).has(ultimos8(telefone))) return { ignorado: "número interno ou corretor" };
-  // pushName de mensagem enviada é o nome da Thainara, não do cliente
+  // pushName de mensagem enviada é o nome da atendente, não do cliente
   const nome = (!key.fromMe && d.pushName && d.pushName !== telefone) ? String(d.pushName).slice(0, 120) : null;
   const imovelLink = cadastroSite ? (textoCompleto.match(LINK_IMOVEL)?.[0] ?? null) : null;
 

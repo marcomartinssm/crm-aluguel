@@ -1,4 +1,4 @@
-# CRM Aluguel (Thainara)
+# CRM Aluguel (Thainara e Milene)
 
 Três telas: **Entrada** → **Funil de aluguel** → **Painel** (o Painel só aparece para administrador).
 
@@ -7,7 +7,9 @@ Três telas: **Entrada** → **Funil de aluguel** → **Painel** (o Painel só a
 - Função que recebe as mensagens: `supabase/functions/crm-aluguel-entrada/index.ts`
   (projeto Supabase `jgdbnkwhmesgjvsymgma`, verify_jwt desligado, protegida por `?token=`).
 - O token fica na tabela `crm_aluguel_config` (chave `webhook_token`) e em `.token` nesta pasta (não compartilhar).
-- WhatsApp da Thainara = instância Evolution **ALUGUELARA**, com webhook `MESSAGES_UPSERT` + `SEND_MESSAGE` apontando para a função.
+- Atendentes: Thainara = instância Evolution **ALUGUELARA**, Milene = **central** — as duas com webhook
+  `MESSAGES_UPSERT` + `SEND_MESSAGE` apontando para a função. Lista `ATENDENTES` na função E na tela (manter iguais).
+- Administrador vê todas e escolhe a atendente no topo; cada atendente só vê os clientes do próprio WhatsApp.
 
 ## Banco (todas com prefixo `crm_aluguel_`)
 - `crm_aluguel_usuarios` — quem entra e com qual papel (`admin` ou `atendente`).
@@ -50,4 +52,6 @@ A função recusa quem não é admin, então a Thainara não consegue ver os nú
 ## Dar acesso a alguém
 1. Supabase → Authentication → Users → Add user (e-mail e senha, marcar "Auto Confirm").
 2. Rodar no SQL:
-   `insert into crm_aluguel_usuarios (user_id, nome, papel, instancia) select id, 'Thainara', 'atendente', 'ALUGUELARA' from auth.users where email = 'EMAIL';`
+   `insert into crm_aluguel_usuarios (user_id, nome, papel, instancia) select id, 'NOME', 'atendente', 'INSTANCIA' from auth.users where email = 'EMAIL';`
+3. Atendente nova (outro WhatsApp): acrescentar em `ATENDENTES` (função e tela), publicar a função e
+   chamar `POST ...crm-aluguel-entrada?token=...&acao=ligar_webhook&instancia=NOME` (ver antes `acao=webhook_atual`).
