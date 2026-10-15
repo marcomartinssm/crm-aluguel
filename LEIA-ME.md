@@ -68,3 +68,14 @@ A função recusa quem não é admin, então a Thainara não consegue ver os nú
    `insert into crm_aluguel_usuarios (user_id, nome, papel, instancia) select id, 'NOME', 'atendente', 'INSTANCIA' from auth.users where email = 'EMAIL';`
 3. Atendente nova (outro WhatsApp): acrescentar em `ATENDENTES` (função e tela), publicar a função e
    chamar `POST ...crm-aluguel-entrada?token=...&acao=ligar_webhook&instancia=NOME` (ver antes `acao=webhook_atual`).
+
+## Relatórios no WhatsApp (grupo)
+Código em `supabase/functions/crm-aluguel-entrada/relatorio.ts` (mesmos números do Painel, função `crm_aluguel_resumo_dados`).
+- **Diário:** seg-sex 18h30 e sáb 12h30 (o dia de hoje). **Semanal:** segunda 8h (segunda a domingo anteriores).
+  **Mensal:** dia 1 às 8h05 (mês anterior). Agendados no pg_cron (`crm-aluguel-relatorio-*`), que chama
+  `crm_aluguel_chamar_relatorio(tipo)`.
+- Envia pela instância `relatorio_instancia` (Seguralta) para o grupo `relatorio_grupo` (id terminando em @g.us),
+  ambos em `crm_aluguel_config`. O número que envia precisa estar no grupo.
+- Cada relatório é gravado em `crm_aluguel_relatorios` (não manda duas vezes o mesmo período).
+- Testar sem enviar: `POST ...crm-aluguel-entrada?token=...&acao=relatorio&tipo=dia&teste=1`.
+  Reenviar: `&forcar=1`. Achar o id do grupo: `GET ...&acao=grupos`.

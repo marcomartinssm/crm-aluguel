@@ -9,10 +9,13 @@
 //   GET  acao=webhook_atual&instancia=X     mostra o webhook configurado hoje na instância
 //   POST acao=ligar_webhook&instancia=X     aponta o webhook da instância para esta função
 //   GET  acao=historico&instancia=X&jid=Y   diagnóstico: o que a função acharia de histórico para esse contato
+//   POST acao=relatorio&tipo=dia|semana|mes[&teste=1][&forcar=1]  relatório no grupo do WhatsApp (ver relatorio.ts)
+//   GET  acao=grupos                        grupos do número que envia os relatórios
 //
 // Segredo usado (já existe no projeto): EVOLUTION_API_KEY
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { gerarRelatorio, listarGrupos, type TipoRelatorio } from "./relatorio.ts";
 
 const EVOLUTION_URL = Deno.env.get("EVOLUTION_URL") ?? "https://dinastia-evolution.saxddq.easypanel.host";
 const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY") ?? "";
@@ -391,6 +394,17 @@ Deno.serve(async (req) => {
       const evoRes = await conversaAnteriorNaEvolution(instParam, jid, agora);
       return responder({ evolution: evoRes, resultado: await verificarHistorico(instParam, jid, tel, agora) });
     }
+
+    if (acao === "relatorio") {
+      const tipo = url.searchParams.get("tipo") as TipoRelatorio;
+      if (!["dia", "semana", "mes"].includes(tipo)) return responder({ erro: "tipo deve ser dia, semana ou mes" }, 400);
+      return responder(await gerarRelatorio(db, evo, ATENDENTES, tipo, {
+        teste: url.searchParams.get("teste") === "1",
+        forcar: url.searchParams.get("forcar") === "1",
+      }));
+    }
+
+    if (acao === "grupos") return responder(await listarGrupos(db, evo));
 
     // Webhook da Evolution
     const corpo = await req.json().catch(() => null);
