@@ -591,7 +591,7 @@ async function carregarPainel() {
       <span class="trilho"><div class="barra" style="width:${Math.round((p.n / maior) * 100)}%"></div></span>
       <span class="qtd">${p.n}</span></div>`).join("")
     : '<div class="vazio" style="padding:16px">Nenhuma perda no período.</div>'}</div>
-    <p class="meta">Taxas comparam o que aconteceu dentro do período escolhido. Horário comercial: seg a sex 8h–12h e 13h30–18h, sáb 8h–12h.</p>`;
+    <p class="meta">Taxas comparam o que aconteceu dentro do período escolhido. Horário comercial: seg a sex 8h–12h e 13h30–18h.</p>`;
 
   $("painel").innerHTML = h;
 }

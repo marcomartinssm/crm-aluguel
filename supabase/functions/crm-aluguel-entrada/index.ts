@@ -125,13 +125,13 @@ async function configNumero(chave: string, padrao: number): Promise<number> {
   return Number.isFinite(n) ? n : padrao;
 }
 
-// ---------- expediente (mesmo horário do Radar de Atendimento) ----------
+// ---------- expediente da locação: seg-sex 8h-12h e 13h30-18h (não trabalham sábado nem domingo) ----------
 
 const FUSO_OFFSET_HORAS = -3; // Brasília
 const MANHA_TARDE: [number, number][] = [[8, 12], [13.5, 18]];
 const EXPEDIENTE: Record<number, [number, number][]> = {
   0: [], 1: MANHA_TARDE, 2: MANHA_TARDE, 3: MANHA_TARDE, 4: MANHA_TARDE, 5: MANHA_TARDE,
-  6: [[8, 12]],
+  6: [],
 };
 
 function diaDaSemanaBR(epoch: number): number {

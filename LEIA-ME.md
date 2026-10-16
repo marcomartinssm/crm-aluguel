@@ -38,7 +38,7 @@ Três telas: **Entrada** → **Funil de aluguel** → **Painel** (o Painel só a
   responde a mensagem automática (a automática não conta como resposta).
 - Termina na 1ª mensagem da Thainara depois disso (`primeira_resposta_em`).
 - Guarda os minutos corridos (`primeira_resposta_min`) e só os minutos de horário comercial
-  (`primeira_resposta_min_expediente`; seg-sex 8h-12h e 13h30-18h, sáb 8h-12h — mesmo horário do Radar).
+  (`primeira_resposta_min_expediente`; seg-sex 8h-12h e 13h30-18h; sem sábado).
 
 ## Funil (função `crm_aluguel_mover` no banco)
 Colunas: 1 Atendimento · 2 Visita · 2.1 Visita realizada · 2.2 Não realizada · 3 Ficha cadastral · 3.1 Aprovado ·
@@ -71,10 +71,10 @@ A função recusa quem não é admin, então a Thainara não consegue ver os nú
 
 ## Relatórios no WhatsApp (grupo)
 Código em `supabase/functions/crm-aluguel-entrada/relatorio.ts` (mesmos números do Painel, função `crm_aluguel_resumo_dados`).
-- **Diário:** seg-sex 18h30 e sáb 12h30 (o dia de hoje). **Semanal:** segunda 8h (segunda a domingo anteriores).
+- **Diário:** seg-sex 18h30 (o dia de hoje; sábado não tem). **Semanal:** segunda 8h (segunda a domingo anteriores).
   **Mensal:** dia 1 às 8h05 (mês anterior). Agendados no pg_cron (`crm-aluguel-relatorio-*`), que chama
   `crm_aluguel_chamar_relatorio(tipo)`.
-- Envia pela instância `relatorio_instancia` (Seguralta) para o grupo `relatorio_grupo` (id terminando em @g.us),
+- Envia pela instância `relatorio_instancia` (Seguralta) para o grupo `relatorio_grupo` = COMERCIAL LOCAÇÃO (120363412795613781@g.us),
   ambos em `crm_aluguel_config`. O número que envia precisa estar no grupo.
 - Cada relatório é gravado em `crm_aluguel_relatorios` (não manda duas vezes o mesmo período).
 - Testar sem enviar: `POST ...crm-aluguel-entrada?token=...&acao=relatorio&tipo=dia&teste=1`.
