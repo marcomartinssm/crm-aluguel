@@ -26,7 +26,7 @@ function ddmm(dt: Date) {
   return `${String(t.getUTCDate()).padStart(2, "0")}/${String(t.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-// dia = hoje; semana = segunda a domingo da semana passada; mês = mês passado.
+// dia = hoje; semana = sábado a sexta (enviado no sábado, pega o fim de semana anterior); mês = mês passado.
 export function periodo(tipo: TipoRelatorio) {
   const h = hojeBR();
   if (tipo === "dia") {
@@ -34,10 +34,10 @@ export function periodo(tipo: TipoRelatorio) {
     return { inicio, fim: meiaNoiteBR(h.a, h.m, h.d + 1), titulo: "Relatório diário", rotulo: `${DIAS[h.dow]}, ${ddmm(inicio)}/${h.a}` };
   }
   if (tipo === "semana") {
-    const desdeSegunda = (h.dow + 6) % 7;
-    const fim = meiaNoiteBR(h.a, h.m, h.d - desdeSegunda);
+    const desdeSabado = (h.dow + 1) % 7;
+    const fim = meiaNoiteBR(h.a, h.m, h.d - desdeSabado);
     const inicio = new Date(fim.getTime() - 7 * 86400000);
-    return { inicio, fim, titulo: "Relatório semanal", rotulo: `${ddmm(inicio)} a ${ddmm(new Date(fim.getTime() - 86400000))}` };
+    return { inicio, fim, titulo: "Relatório semanal", rotulo: `sáb ${ddmm(inicio)} a sex ${ddmm(new Date(fim.getTime() - 86400000))}` };
   }
   const inicio = meiaNoiteBR(h.a, h.m - 1, 1);
   const t = new Date(inicio.getTime() - FUSO_MS);
@@ -106,6 +106,17 @@ export function montarTexto(tipo: TipoRelatorio, p: ReturnType<typeof periodo>, 
   l.push(`• Aprovação de ficha: ${pct(aprov, aprov + reprov)}`);
   l.push(`• Lead → contrato: ${pct(fechados, foiAluguel)}`);
   l.push("");
+  const f = d.fora_horario;
+  if (f) {
+    l.push("*Fora do horário* (fim de semana, antes das 8h e depois das 18h)");
+    l.push(`• ${f.total} de ${f.total_periodo} leads (${pct(f.total, f.total_periodo)}) chegaram fora do expediente`);
+    if (f.total) {
+      l.push(`• Depois das 18h: ${f.depois_18h} · Antes das 8h: ${f.antes_8h} · Fim de semana: ${f.fim_de_semana}`);
+      l.push(`• Esperaram em média ${tempo(f.espera_media_min)} pela 1ª resposta`);
+      l.push(`• Foram para aluguel: ${f.foram_aluguel} · Fechados: ${f.fechados}`);
+    }
+    l.push("");
+  }
   l.push("*1ª resposta* (horário comercial)");
   for (const [nome, x] of porAtendente) {
     const r = x.resposta;

@@ -563,6 +563,16 @@ async function carregarPainel() {
     ${caixa("Ainda sem resposta", rs.aguardando)}
   </div>`;
 
+  const fo = d.fora_horario;
+  h += `<div class="secao-painel">Fora do horário comercial · fim de semana, antes das 8h e depois das 18h</div><div class="grade">
+    ${caixa("Leads fora do horário", fo.total, `${pct(fo.total, fo.total_periodo)} dos ${fo.total_periodo} que entraram`, fo.total > 0)}
+    ${caixa("Depois das 18h", fo.depois_18h)}
+    ${caixa("Antes das 8h", fo.antes_8h)}
+    ${caixa("Fim de semana", fo.fim_de_semana)}
+    ${caixa("Espera até a 1ª resposta", fo.espera_media_min != null ? duracao(fo.espera_media_min) : "–", "média, tempo corrido")}
+    ${caixa("Viraram aluguel / fecharam", `${fo.foram_aluguel} / ${fo.fechados}`)}
+  </div>`;
+
   h += `<div class="secao-painel">Movimento do funil no período</div><div class="grade">
     ${caixa("Visitas marcadas", visitasMarcadas)}
     ${caixa("Visitas realizadas", realizadas)}

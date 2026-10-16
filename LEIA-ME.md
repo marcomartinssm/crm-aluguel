@@ -71,7 +71,7 @@ A função recusa quem não é admin, então a Thainara não consegue ver os nú
 
 ## Relatórios no WhatsApp (grupo)
 Código em `supabase/functions/crm-aluguel-entrada/relatorio.ts` (mesmos números do Painel, função `crm_aluguel_resumo_dados`).
-- **Diário:** seg-sex 18h30 (o dia de hoje; sábado não tem). **Semanal:** segunda 8h (segunda a domingo anteriores).
+- **Diário:** seg-sex 18h30 (o dia de hoje; sábado não tem). **Semanal:** sábado 9h (sábado a sexta, inclui o fim de semana anterior).
   **Mensal:** dia 1 às 8h05 (mês anterior). Agendados no pg_cron (`crm-aluguel-relatorio-*`), que chama
   `crm_aluguel_chamar_relatorio(tipo)`.
 - Envia pela instância `relatorio_instancia` (Seguralta) para o grupo `relatorio_grupo` = COMERCIAL LOCAÇÃO (120363412795613781@g.us),
@@ -79,3 +79,7 @@ Código em `supabase/functions/crm-aluguel-entrada/relatorio.ts` (mesmos número
 - Cada relatório é gravado em `crm_aluguel_relatorios` (não manda duas vezes o mesmo período).
 - Testar sem enviar: `POST ...crm-aluguel-entrada?token=...&acao=relatorio&tipo=dia&teste=1`.
   Reenviar: `&forcar=1`. Achar o id do grupo: `GET ...&acao=grupos`.
+
+## Fora do horário (para avaliar uma IA atendendo)
+Lead que chega no fim de semana, antes das 8h ou depois das 18h (seg-sex) — função `crm_aluguel_fora_horario(quando)`.
+Painel e relatórios mostram: quantos, % do total, por faixa, espera média até a 1ª resposta, quantos viraram aluguel e fecharam.
