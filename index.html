@@ -590,6 +590,7 @@ async function carregarPainel() {
     ${caixa("Comparecimento", pct(realizadas, realizadas + faltas))}
     ${caixa("Visita vira ficha", pct(fichas, realizadas))}
     ${caixa("Aprovação", pct(aprov, aprov + reprov))}
+    ${caixa("Aprovado vira fechado", pct(n(mv, "realizado"), n(mv, "realizado") + n(mv, "perdido")), "fechados ÷ (fechados + perdidos)")}
     ${caixa("Lead vira contrato", pct(n(mv, "realizado"), foiAluguel))}
     ${caixa("Tempo até fechar", fe.media_dias != null ? `${String(fe.media_dias).replace(".", ",")} dias` : "–", `média de ${fe.realizados} contrato${fe.realizados === 1 ? "" : "s"}`, true)}
   </div>`;

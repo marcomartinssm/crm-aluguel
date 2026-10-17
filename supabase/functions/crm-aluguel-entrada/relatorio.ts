@@ -104,6 +104,8 @@ export function montarTexto(tipo: TipoRelatorio, p: ReturnType<typeof periodo>, 
   l.push(`• Comparecimento na visita: ${pct(realizadas, realizadas + faltas)}`);
   l.push(`• Visita → ficha: ${pct(fichas, realizadas)}`);
   l.push(`• Aprovação de ficha: ${pct(aprov, aprov + reprov)}`);
+  // dos aprovados que tiveram desfecho no período, quantos fecharam (realizado) em vez de perdidos
+  l.push(`• Aprovado → fechado: ${pct(fechados, fechados + perdidos)}`);
   l.push(`• Lead → contrato: ${pct(fechados, foiAluguel)}`);
   l.push("");
   const f = d.fora_horario;
