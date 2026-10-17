@@ -165,7 +165,7 @@
   <main>
     <section id="aba-entrada">
       <div class="topo">
-        <h2>Entrada <span class="meta" id="contagem"></span></h2>
+        <h2>Entrada <span class="meta">· pré-atendimento</span> <span class="meta" id="contagem"></span></h2>
         <div class="filtros" id="filtros">
           <button data-f="todos" class="ativo">Todos</button>
           <button data-f="novos">Novos</button>
@@ -536,7 +536,7 @@ async function carregarPainel() {
   const foiAluguel = n(cl, "atendimento");
 
   let h = `<div class="secao-painel">Como está agora</div><div class="grade">
-    ${caixa("Na Entrada", d.agora.entrada, "esperando classificação")}
+    ${caixa("Em pré-atendimento", d.agora.entrada, "na Entrada, esperando classificação")}
     ${caixa("1. Atendimento", n(et, "atendimento"))}
     ${caixa("2. Visita agendada", n(et, "visita"))}
     ${caixa("2.1 Visitou", n(et, "visita_realizada"))}
@@ -547,10 +547,11 @@ async function carregarPainel() {
     ${caixa("Voltaram a falar", voltaramN, "encerrados aguardando novo status", voltaramN > 0)}
   </div>`;
 
-  h += `<div class="secao-painel">Entrada no período</div><div class="grade">
-    ${caixa("Novos contatos", en.novos_contatos, `${en.sem_historico} novos · ${en.com_historico} com histórico`)}
+  h += `<div class="secao-painel">Pré-atendimento → lead no período</div><div class="grade">
+    ${caixa("Pré-atendimentos", en.novos_contatos, `${en.sem_historico} novos · ${en.com_historico} com histórico`)}
     ${caixa("Cadastro no site", en.cadastro_site)}
-    ${caixa("Foram para aluguel", foiAluguel)}
+    ${caixa("Viraram lead (Aluguel)", en.viraram_lead, en.em_pre_atendimento ? `${en.em_pre_atendimento} ainda sem classificar` : "")}
+    ${caixa("Pré-atendimento → lead", pct(en.viraram_lead, en.ja_classificados), "dos já classificados", true)}
     ${caixa("Vendas", n(cl, "vendas"))}
     ${caixa("Suporte", n(cl, "suporte"))}
     ${caixa("Outros", n(cl, "outros"))}
@@ -565,12 +566,12 @@ async function carregarPainel() {
 
   const fo = d.fora_horario;
   h += `<div class="secao-painel">Fora do horário comercial · fim de semana, antes das 8h e depois das 18h</div><div class="grade">
-    ${caixa("Leads fora do horário", fo.total, `${pct(fo.total, fo.total_periodo)} dos ${fo.total_periodo} que entraram`, fo.total > 0)}
+    ${caixa("Pré-atendimentos fora do horário", fo.total, `${pct(fo.total, fo.total_periodo)} dos ${fo.total_periodo} que entraram`, fo.total > 0)}
     ${caixa("Depois das 18h", fo.depois_18h)}
     ${caixa("Antes das 8h", fo.antes_8h)}
     ${caixa("Fim de semana", fo.fim_de_semana)}
     ${caixa("Espera até a 1ª resposta", fo.espera_media_min != null ? duracao(fo.espera_media_min) : "–", "média, tempo corrido")}
-    ${caixa("Viraram aluguel / fecharam", `${fo.foram_aluguel} / ${fo.fechados}`)}
+    ${caixa("Viraram lead / fecharam", `${fo.foram_aluguel} / ${fo.fechados}`)}
   </div>`;
 
   h += `<div class="secao-painel">Movimento do funil no período</div><div class="grade">

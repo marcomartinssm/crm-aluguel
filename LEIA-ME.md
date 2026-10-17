@@ -83,3 +83,8 @@ Código em `supabase/functions/crm-aluguel-entrada/relatorio.ts` (mesmos número
 ## Fora do horário (para avaliar uma IA atendendo)
 Lead que chega no fim de semana, antes das 8h ou depois das 18h (seg-sex) — função `crm_aluguel_fora_horario(quando)`.
 Painel e relatórios mostram: quantos, % do total, por faixa, espera média até a 1ª resposta, quantos viraram aluguel e fecharam.
+
+## Definições (Marco, 17/10)
+- **Pré-atendimento** = contato que entrou na Entrada (mensagem ou cadastro do site), antes de ser classificado.
+- **Lead** = pré-atendimento que a atendente classificou como **Aluguel**.
+- **Pré-atendimento → lead** = viraram lead ÷ pré-atendimentos do período já classificados (os que ainda estão na Entrada não entram na conta).

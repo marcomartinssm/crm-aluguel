@@ -80,12 +80,16 @@ export function montarTexto(tipo: TipoRelatorio, p: ReturnType<typeof periodo>, 
   l.push(`*📊 CRM Aluguel — ${p.titulo}*`);
   l.push(`_${p.rotulo}_`);
   l.push("");
-  l.push("*Leads que entraram*");
-  l.push(`• Total: *${d.entrada.novos_contatos}* (${d.entrada.sem_historico} novos · ${d.entrada.com_historico} com histórico · ${d.entrada.cadastro_site} do site)`);
+  // Pré-atendimento = contato que entrou na Entrada; lead = classificado como Aluguel na Entrada.
+  const en = d.entrada;
+  l.push("*Pré-atendimento → lead*");
+  l.push(`• Pré-atendimentos: *${en.novos_contatos}* (${en.sem_historico} novos · ${en.com_historico} com histórico · ${en.cadastro_site} do site)`);
   if (porAtendente.length > 1) {
     l.push(`• Por atendente: ${porAtendente.map(([nome, x]) => `${nome} ${x.entrada.novos_contatos}`).join(" · ")}`);
   }
-  l.push(`• Foram para aluguel: ${foiAluguel} · Vendas: ${n(cl, "vendas")} · Suporte: ${n(cl, "suporte")} · Outros: ${n(cl, "outros")}`);
+  l.push(`• Viraram *lead* (Aluguel): *${en.viraram_lead}*`);
+  l.push(`• Outros destinos: Vendas ${n(cl, "vendas")} · Suporte ${n(cl, "suporte")} · Outros ${n(cl, "outros")}`);
+  if (en.em_pre_atendimento) l.push(`• Ainda em pré-atendimento (sem classificar): ${en.em_pre_atendimento}`);
   l.push("");
   l.push("*Funil no período*");
   l.push(`• Visitas marcadas: ${visitas} · realizadas: ${realizadas} · faltaram: ${faltas}`);
@@ -96,10 +100,11 @@ export function montarTexto(tipo: TipoRelatorio, p: ReturnType<typeof periodo>, 
   if (d.fechamento.media_dias != null) l.push(`• Tempo médio até fechar: ${String(d.fechamento.media_dias).replace(".", ",")} dias`);
   l.push("");
   l.push("*Como está agora*");
-  l.push(`• Na Entrada: ${d.agora.entrada} · Em atendimento: ${n(et, "atendimento")}`);
+  l.push(`• Em pré-atendimento: ${d.agora.entrada} · Em atendimento: ${n(et, "atendimento")}`);
   l.push(`• Em visita: ${emVisita} · Em ficha de análise: ${n(et, "ficha")} · Aprovados aguardando: ${n(et, "aprovado")}`);
   l.push("");
   l.push("*Conversões*");
+  l.push(`• Pré-atendimento → lead: ${pct(en.viraram_lead, en.ja_classificados)}`);
   l.push(`• Lead → visita: ${pct(visitas, foiAluguel)}`);
   l.push(`• Comparecimento na visita: ${pct(realizadas, realizadas + faltas)}`);
   l.push(`• Visita → ficha: ${pct(fichas, realizadas)}`);
@@ -111,11 +116,11 @@ export function montarTexto(tipo: TipoRelatorio, p: ReturnType<typeof periodo>, 
   const f = d.fora_horario;
   if (f) {
     l.push("*Fora do horário* (fim de semana, antes das 8h e depois das 18h)");
-    l.push(`• ${f.total} de ${f.total_periodo} leads (${pct(f.total, f.total_periodo)}) chegaram fora do expediente`);
+    l.push(`• ${f.total} de ${f.total_periodo} pré-atendimentos (${pct(f.total, f.total_periodo)}) chegaram fora do expediente`);
     if (f.total) {
       l.push(`• Depois das 18h: ${f.depois_18h} · Antes das 8h: ${f.antes_8h} · Fim de semana: ${f.fim_de_semana}`);
       l.push(`• Esperaram em média ${tempo(f.espera_media_min)} pela 1ª resposta`);
-      l.push(`• Foram para aluguel: ${f.foram_aluguel} · Fechados: ${f.fechados}`);
+      l.push(`• Viraram lead: ${f.foram_aluguel} · Fechados: ${f.fechados}`);
     }
     l.push("");
   }
