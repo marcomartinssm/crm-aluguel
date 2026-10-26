@@ -102,6 +102,10 @@ export function montarTexto(tipo: TipoRelatorio, p: ReturnType<typeof periodo>, 
   l.push("*Como está agora*");
   l.push(`• Em pré-atendimento: ${d.agora.entrada} · Em atendimento: ${n(et, "atendimento")}`);
   l.push(`• Em visita: ${emVisita} · Em ficha de análise: ${n(et, "ficha")} · Aprovados aguardando: ${n(et, "aprovado")}`);
+  const ag = d.agora;
+  if (ag.sem_contato_vermelho || ag.sem_contato_amarelo) {
+    l.push(`• ⚠️ Leads sem contato: *${n(ag, "sem_contato_vermelho")}* há 7 dias ou mais · ${n(ag, "sem_contato_amarelo")} entre 3 e 6 dias`);
+  }
   l.push("");
   l.push("*Conversões*");
   l.push(`• Pré-atendimento → lead: ${pct(en.viraram_lead, en.ja_classificados)}`);

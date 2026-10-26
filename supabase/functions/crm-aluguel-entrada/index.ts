@@ -11,6 +11,7 @@
 //   GET  acao=historico&instancia=X&jid=Y   diagnóstico: o que a função acharia de histórico para esse contato
 //   POST acao=relatorio&tipo=dia|semana|mes[&teste=1][&forcar=1]  relatório no grupo do WhatsApp (ver relatorio.ts)
 //   GET  acao=grupos                        grupos do número que envia os relatórios
+//   POST acao=recalcular_contato            refaz "último contato" dos leads abertos pela última mensagem da atendente
 //
 // Segredo usado (já existe no projeto): EVOLUTION_API_KEY
 
@@ -333,8 +334,17 @@ async function receberMensagem(instancia: string, d: any) {
   return { criado: data.id, ...hist };
 }
 
-// 1ª mensagem da atendente depois que o cliente falou = tempo de primeira resposta.
+const FINAIS = "(realizado,perdido,descartado,reprovado)";
+
+// Mensagem da atendente: conta como contato com o lead (zera o "sem contato há X dias")
+// e, se for a 1ª depois que o cliente falou, vira o tempo de primeira resposta.
 async function registrarResposta(instancia: string, jid: string, telefone: string, agoraSeg: number) {
+  let qc = db.from("crm_aluguel_contatos")
+    .update({ ultimo_contato_em: new Date(agoraSeg * 1000).toISOString() })
+    .eq("instancia", instancia).eq("classificacao", "aluguel").not("etapa", "in", FINAIS);
+  qc = telefone && !jid.endsWith("@lid") ? qc.eq("telefone", telefone) : qc.eq("jid", jid);
+  await qc;
+
   let q = db.from("crm_aluguel_contatos")
     .select("id, cliente_falou_em, criado_em")
     .eq("instancia", instancia)
@@ -359,6 +369,39 @@ async function registrarResposta(instancia: string, jid: string, telefone: strin
     primeira_resposta_min_expediente: uteis,
   }).eq("id", c.id).is("primeira_resposta_em", null);
   return { primeira_resposta: c.id, minutos, minutos_expediente: uteis };
+}
+
+// Uma vez (ou quando precisar): olha no WhatsApp a última mensagem que a atendente mandou para cada lead aberto
+// e usa como "último contato", se for mais recente que o registrado.
+async function recalcularContato() {
+  const { data } = await db.from("crm_aluguel_contatos")
+    .select("id, instancia, jid, telefone, ultimo_contato_em")
+    .eq("classificacao", "aluguel").not("etapa", "in", FINAIS);
+  let atualizados = 0, semMensagem = 0;
+  for (const c of data ?? []) {
+    // a conversa pode estar guardada pelo @lid ou pelo número: procura nos dois
+    const jids = [...new Set([c.jid, c.telefone ? `${c.telefone}@s.whatsapp.net` : null].filter(Boolean))] as string[];
+    let ts = 0;
+    for (const jid of jids) {
+      const r = await evo(`/chat/findMessages/${encodeURIComponent(c.instancia)}`, {
+        method: "POST",
+        body: JSON.stringify({ where: { key: { remoteJid: jid } }, page: 1, offset: 100 }), // da mais nova para a mais antiga
+      }).catch(() => null);
+      const bloco = (r?.corpo as any)?.messages ?? r?.corpo;
+      const regs: any[] = bloco?.records ?? (Array.isArray(bloco) ? bloco : []);
+      for (const m of regs) {
+        // a Evolution já filtrou pela conversa (casa o número também com o @lid), então não compara o jid de novo
+        if (!m?.key?.fromMe) continue;
+        ts = Math.max(ts, Number(m.messageTimestamp ?? 0));
+      }
+    }
+    if (!ts) { semMensagem++; continue; }
+    if (!c.ultimo_contato_em || ts * 1000 > Date.parse(c.ultimo_contato_em)) {
+      await db.from("crm_aluguel_contatos").update({ ultimo_contato_em: new Date(ts * 1000).toISOString() }).eq("id", c.id);
+      atualizados++;
+    }
+  }
+  return { leads: data?.length ?? 0, atualizados, semMensagem };
 }
 
 // ---------- servidor ----------
@@ -405,6 +448,8 @@ Deno.serve(async (req) => {
     }
 
     if (acao === "grupos") return responder(await listarGrupos(db, evo));
+
+    if (acao === "recalcular_contato" && req.method === "POST") return responder(await recalcularContato());
 
     // Webhook da Evolution
     const corpo = await req.json().catch(() => null);

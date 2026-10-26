@@ -88,3 +88,13 @@ Painel e relatórios mostram: quantos, % do total, por faixa, espera média até
 - **Pré-atendimento** = contato que entrou na Entrada (mensagem ou cadastro do site), antes de ser classificado.
 - **Lead** = pré-atendimento que a atendente classificou como **Aluguel**.
 - **Pré-atendimento → lead** = viraram lead ÷ pré-atendimentos do período já classificados (os que ainda estão na Entrada não entram na conta).
+
+## Sem contato há X dias (26/10)
+- `ultimo_contato_em` = última ação da ATENDENTE com o lead: mensagem dela no WhatsApp (webhook, em `registrarResposta`),
+  mudança de etapa (gatilho `crm_aluguel_toca_contato`) ou botão **"✓ Lead atualizado"** (`crm_aluguel_lead_atualizado`,
+  movimento `lead_atualizado`). Mensagem do cliente NÃO zera.
+- Cartão: "Último contato: hoje/ontem/há X dias"; amarelo a partir de 3 dias, vermelho a partir de 7
+  (`alerta_dias_amarelo` / `alerta_dias_vermelho` em `crm_aluguel_config`). Filtro no topo do Funil.
+- Painel e relatórios mostram quantos estão sem contato (3–6 dias e 7+).
+- Histórico antes de 26/10 só conta mudanças de etapa (as mensagens antigas das atendentes ficam na Evolution com
+  outro identificador de conversa; `acao=recalcular_contato` não as encontra). A partir de 26/10 conta tudo.

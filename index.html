@@ -67,6 +67,15 @@
   .cartao .botoes button { font-size: 12px; padding: 4px 8px; flex: 1 1 auto; }
   .cartao select { font: inherit; font-size: 12px; width: 100%; margin-top: 8px; padding: 5px; border-radius: 6px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
   .cartao label { display: flex; gap: 6px; align-items: center; font-size: 12px; margin-top: 8px; }
+  .contato { font-size: 12px; margin-top: 3px; }
+  .contato.ok { color: var(--suave); }
+  .contato.amarelo { color: var(--ambar); font-weight: 600; }
+  .contato.vermelho { color: #b3261e; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .contato.vermelho { color: #f2a19a; } }
+  .cartao.alerta-amarelo { border-left: 4px solid #d99a1e; }
+  .cartao.alerta-vermelho { border-left: 4px solid #b3261e; }
+  .cartao .botoes button.atualizar { flex-basis: 100%; font-size: 11px; color: var(--suave); border-style: dashed; }
+  #filtro-contato { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
   .motivo { font-size: 12px; margin-top: 4px; padding: 3px 6px; border-radius: 6px; background: var(--fundo); color: var(--suave); }
   .busca { max-width: 260px; }
 
@@ -180,7 +189,14 @@
     <section id="aba-funil" hidden>
       <div class="topo">
         <h2>Funil de aluguel <span class="meta" id="contagem-funil"></span></h2>
-        <input class="busca" id="busca-funil" type="search" placeholder="Buscar nome ou telefone">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="filtro-contato" aria-label="Filtrar por último contato">
+            <option value="">Todos os leads</option>
+            <option value="amarelo">Sem contato há 3+ dias</option>
+            <option value="vermelho">Sem contato há 7+ dias</option>
+          </select>
+          <input class="busca" id="busca-funil" type="search" placeholder="Buscar nome ou telefone">
+        </div>
       </div>
       <div class="quadro" id="quadro"><div class="vazio">Carregando…</div></div>
       <p class="meta">Realizado, perdido, reprovado e descartado mostram os últimos 30 dias.</p>
@@ -218,6 +234,7 @@ const INSTANCIA_FICHA = "ALUGUELARA";
 
 let usuario = null;      // { nome, papel }
 let filtroAtendente = ""; // admin: "" = todas
+let ALERTA = { amarelo: 3, vermelho: 7 }; // dias sem contato (crm_aluguel_config)
 let duplicados = {};      // contato_id -> nome da outra atendente que também atende o mesmo telefone
 
 async function carregarDuplicados() {
@@ -313,6 +330,7 @@ async function entrar(sessao) {
     return;
   }
   usuario = data;
+  db.rpc("crm_aluguel_alertas").then(({ data: a }) => { if (a) ALERTA = a; });
   $("quem").textContent = `${data.nome} · ${data.papel === "admin" ? "administrador" : "atendente"}`;
   document.querySelectorAll("[data-admin]").forEach((el) => (el.hidden = data.papel !== "admin"));
   $("atendente").innerHTML = '<option value="">Todas as atendentes</option>' +
@@ -543,6 +561,7 @@ async function carregarPainel() {
     ${caixa("2.2 Faltou", n(et, "visita_nao_realizada"))}
     ${caixa("3. Ficha em análise", n(et, "ficha"))}
     ${caixa("3.1 Aprovado", n(et, "aprovado"), "aguardando fechar")}
+    ${caixa("Sem contato há 7+ dias", n(d.agora, "sem_contato_vermelho"), `${n(d.agora, "sem_contato_amarelo")} entre 3 e 6 dias`, n(d.agora, "sem_contato_vermelho") > 0)}
     ${caixa("Leads duplicados", dupNoFiltro, "cartões em atendimento com as duas", dupNoFiltro > 0)}
     ${caixa("Voltaram a falar", voltaramN, "encerrados aguardando novo status", voltaramN > 0)}
   </div>`;
@@ -661,7 +680,7 @@ let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / c
 async function carregarFunil() {
   const desde = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data, error } = await comAtendente(db.from("crm_aluguel_contatos")
-    .select("id, instancia, transferido_de, telefone, nome, origem, imovel_link, voltou_em, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
+    .select("id, instancia, transferido_de, telefone, nome, origem, imovel_link, voltou_em, ultimo_contato_em, atualizado_manual_em, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
     .eq("classificacao", "aluguel"))
     .or(`fechado_em.is.null,fechado_em.gte.${desde},voltou_em.not.is.null`)
     .order("etapa_em", { ascending: true })
@@ -672,9 +691,30 @@ async function carregarFunil() {
   desenharFunil();
 }
 
+// Dias desde a última ação da atendente com o lead (mensagem dela, mudança de etapa ou "Lead atualizado").
+function diasSemContato(c) {
+  const base = c.ultimo_contato_em ?? c.etapa_em;
+  return Math.floor((Date.now() - new Date(base)) / 86400000);
+}
+
+function nivelContato(c) {
+  if (c.fechado_em) return "";
+  const d = diasSemContato(c);
+  return d >= ALERTA.vermelho ? "vermelho" : d >= ALERTA.amarelo ? "amarelo" : "ok";
+}
+
+function linhaContato(c) {
+  const nivel = nivelContato(c);
+  if (!nivel) return "";
+  const d = diasSemContato(c);
+  if (nivel === "ok") return `<div class="contato ok">Último contato: ${d === 0 ? "hoje" : d === 1 ? "ontem" : `há ${d} dias`}</div>`;
+  return `<div class="contato ${nivel}">${nivel === "vermelho" ? "⚠ " : ""}Sem contato há ${d} dias</div>`;
+}
+
 function cartaoFunil(c) {
   const dias = (Date.now() - new Date(c.etapa_em)) / 60000;
-  let h = `<div class="cartao" data-id="${c.id}">
+  const nivel = nivelContato(c);
+  let h = `<div class="cartao${nivel === "amarelo" || nivel === "vermelho" ? " alerta-" + nivel : ""}" data-id="${c.id}">
     <div class="nome">${esc(c.nome ?? telefoneBonito(c.telefone))}</div>
     <div>${c.transferido_de ? `<span class="selo transf" title="Atendido pela ${esc(ATENDENTES[c.transferido_de] ?? c.transferido_de)} e transferido para a ficha">Atendido pela ${esc(ATENDENTES[c.transferido_de] ?? c.transferido_de)}</span> ` : ""}${c.voltou_em ? '<span class="selo voltou">Voltou a falar</span> ' : ""}${seloDuplicado(c)}${seloAtendente(c)}${c.origem === "cadastro_site" ? '<span class="selo site">Cadastro no site</span> ' : ""}${c.tem_historico ? '<span class="selo hist">Com histórico</span> ' : ""}${c.sem_visita ? '<span class="selo hist">Não quis visitar</span>' : ""}</div>
     <div class="meta"><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${telefoneBonito(c.telefone)}</a>${c.imovel_link ? ` · <a href="${esc(c.imovel_link)}" target="_blank" rel="noopener">imóvel</a>` : ""}</div>
@@ -682,7 +722,8 @@ function cartaoFunil(c) {
   if (c.etapa === "realizado" && c.entrou_funil_em) {
     h += `<div class="tempo ok">Fechou em ${duracao((new Date(c.fechado_em) - new Date(c.entrou_funil_em)) / 60000)}</div>`;
   } else if (!c.fechado_em) {
-    h += linhaTempo(c);
+    h += linhaContato(c);
+    if (c.primeira_resposta_min == null) h += linhaTempo(c);
   }
   if (c.motivo) h += `<div class="motivo">${esc(MOTIVOS[c.motivo] ?? c.motivo)}${c.etapa_da_perda ? " · " + esc(NOME_ETAPA[c.etapa_da_perda] ?? c.etapa_da_perda) : ""}</div>`;
 
@@ -710,7 +751,7 @@ function cartaoFunil(c) {
         tipo = tipo || "confirmar";
       }
       return `<button data-para="${para}" data-tipo="${tipo ?? ""}" data-texto="${esc(t)}">${t}</button>`;
-    }).join("")}</div>`;
+    }).join("")}${c.fechado_em ? "" : `<button class="atualizar" data-atualizar title="Falei com o cliente, ele segue nesta etapa">✓ Lead atualizado</button>`}</div>`;
   }
   return h + "</div>";
 }
@@ -718,9 +759,13 @@ function cartaoFunil(c) {
 function desenharFunil() {
   const termo = $("busca-funil").value.trim().toLowerCase();
   const so = termo.replace(/\D/g, "");
-  const lista = funil.filter((c) => !termo || (c.nome ?? "").toLowerCase().includes(termo) || (so && c.telefone.includes(so)));
+  const fc = $("filtro-contato").value;
+  const lista = funil.filter((c) =>
+    (!termo || (c.nome ?? "").toLowerCase().includes(termo) || (so && c.telefone.includes(so))) &&
+    (!fc || (fc === "vermelho" ? nivelContato(c) === "vermelho" : ["amarelo", "vermelho"].includes(nivelContato(c)))));
   const abertos = funil.filter((c) => !c.fechado_em).length;
-  $("contagem-funil").textContent = `· ${abertos} em andamento`;
+  const parados = funil.filter((c) => nivelContato(c) === "vermelho").length;
+  $("contagem-funil").textContent = `· ${abertos} em andamento${parados ? ` · ${parados} sem contato há ${ALERTA.vermelho}+ dias` : ""}`;
   $("quadro").innerHTML = COLUNAS.map((col) => {
     const itens = lista.filter((c) => c.etapa === col.id);
     return `<div class="coluna ${col.cor ?? ""}">
@@ -732,6 +777,7 @@ function desenharFunil() {
 }
 
 $("busca-funil").addEventListener("input", desenharFunil);
+$("filtro-contato").addEventListener("change", desenharFunil);
 
 async function mover(id, para, motivo, semVisita) {
   const { error } = await db.rpc("crm_aluguel_mover", { p_contato: id, p_para: para, p_motivo: motivo ?? null, p_sem_visita: !!semVisita });
@@ -751,6 +797,15 @@ $("quadro").addEventListener("click", async (e) => {
   const id = cartao.dataset.id;
 
   if (b.hasAttribute("data-cancelar")) { abertoEm = null; desenharFunil(); return; }
+
+  if (b.hasAttribute("data-atualizar")) {
+    b.disabled = true;
+    const { error } = await db.rpc("crm_aluguel_lead_atualizado", { p_contato: id });
+    if (error) { aviso(error.message); b.disabled = false; return; }
+    aviso("Lead atualizado — contador de dias zerado");
+    carregarFunil();
+    return;
+  }
 
   if (b.hasAttribute("data-ok")) {
     let motivo = null, semVisita = false;
