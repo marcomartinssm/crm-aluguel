@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pré-atendimento · Projetar</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --fundo: #f6f4f1; --card: #ffffff; --borda: #e6e1da; --texto: #2a2522; --suave: #7a716a;
+    --destaque: #7a1f2b; --destaque-claro: #f3e7e8;
+    --verde: #2f6b2f; --verde-claro: #e6f1e1; --ambar: #8a5a0b; --ambar-claro: #faefd9;
+    --balao-cli: #ffffff; --balao-ia: #dcf3e4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #17191c; --card: #202328; --borda: #30343a; --texto: #ecebe8; --suave: #9a9892;
+      --destaque: #e0808c; --destaque-claro: #3a2428;
+      --verde: #9fd39a; --verde-claro: #23331f; --ambar: #f0c070; --ambar-claro: #3a2f18;
+      --balao-cli: #2a2e34; --balao-ia: #1f3a2a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); padding: 6px 12px; }
+  button:hover { border-color: var(--suave); }
+  button:disabled { opacity: .5; cursor: default; }
+  input, textarea, select { font: inherit; width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
+  textarea { resize: vertical; }
+  .principal { background: var(--destaque); color: #fff; border-color: var(--destaque); }
+  @media (prefers-color-scheme: dark) { .principal { color: #17191c; } }
+  .meta { font-size: 13px; color: var(--suave); }
+
+  #login { max-width: 360px; margin: 12vh auto; padding: 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; padding: 16px; }
+  #login h1 { font-size: 20px; margin: 0 0 4px; }
+  #login label { display: block; font-size: 13px; color: var(--suave); margin: 10px 0 4px; }
+  #login .principal { width: 100%; margin-top: 18px; padding: 10px; }
+  .erro { color: #b3261e; font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
+  header .marca { font-weight: 600; color: var(--destaque); }
+  nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+  nav button { border: none; background: none; padding: 6px 12px; color: var(--suave); }
+  nav button.ativo { background: var(--destaque-claro); color: var(--destaque); font-weight: 600; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+  h2 { font-size: 20px; margin: 0 0 4px; }
+  .dupla { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .dupla { grid-template-columns: 1fr; } }
+
+  /* conversa estilo WhatsApp */
+  .chat { background: var(--fundo); border: 1px solid var(--borda); border-radius: 12px; padding: 12px; min-height: 360px; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .balao { max-width: 80%; padding: 8px 11px; border-radius: 10px; font-size: 14px; white-space: pre-wrap; border: 1px solid var(--borda); }
+  .balao.cliente { align-self: flex-start; background: var(--balao-cli); }
+  .balao.ia { align-self: flex-end; background: var(--balao-ia); }
+  .balao.ia.sombra { border-style: dashed; }
+  .balao .hora { font-size: 11px; color: var(--suave); margin-top: 3px; display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+  .balao .notas { display: flex; gap: 4px; }
+  .balao .notas button { padding: 0 6px; font-size: 13px; border-color: transparent; background: transparent; }
+  .balao .notas button.marcada { border-color: var(--suave); background: var(--card); }
+  .balao .coment { font-size: 12px; color: var(--ambar); margin-top: 4px; }
+  .digitando { align-self: flex-end; font-size: 13px; color: var(--suave); font-style: italic; }
+  .enviar { display: flex; gap: 8px; margin-top: 10px; }
+  .enviar textarea { min-height: 44px; }
+
+  .resumo dl { margin: 0; display: grid; grid-template-columns: 120px 1fr; gap: 4px 10px; font-size: 14px; }
+  .resumo dt { color: var(--suave); }
+  .resumo dd { margin: 0; }
+  .selo { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--destaque-claro); color: var(--destaque); }
+  .selo.alerta { background: #b3261e; color: #fff; }
+
+  .lista .item { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--borda); cursor: pointer; }
+  .lista .item:first-child { border-top: none; }
+  .lista .item:hover { background: var(--fundo); }
+  .lista .info { flex: 1; min-width: 0; }
+  .vazio { padding: 30px 16px; text-align: center; color: var(--suave); }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .num { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; }
+  .num .val { font-size: 22px; font-weight: 600; }
+  label.campo { display: block; font-size: 13px; color: var(--suave); margin: 12px 0 4px; }
+  .linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .chave { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .chave input { width: auto; }
+  .aviso { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--fundo); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .aviso.on { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="login" hidden>
+  <div class="card">
+    <h1>Pré-atendimento</h1>
+    <p class="meta">Projetar Imóveis · só administrador</p>
+    <form id="form-login">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" autocomplete="current-password" required>
+      <button class="principal" type="submit">Entrar</button>
+      <div class="erro" id="erro-login"></div>
+    </form>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <span class="marca">Pré-atendimento · <span id="persona-topo">Aline</span></span>
+    <nav id="abas">
+      <button data-aba="simulador" class="ativo">Simulador</button>
+      <button data-aba="sombra">Modo sombra</button>
+      <button data-aba="regras">Regras</button>
+    </nav>
+    <span class="meta"><a href="./" style="color:inherit">CRM Aluguel</a> · <button id="sair">Sair</button></span>
+  </header>
+
+  <main>
+    <!-- SIMULADOR -->
+    <section id="aba-simulador">
+      <div class="linha" style="justify-content:space-between;margin-bottom:12px">
+        <div>
+          <h2>Simulador</h2>
+          <div class="meta">Tu fazes o papel do cliente. Nada vai para o WhatsApp.</div>
+        </div>
+        <div class="linha">
+          <input id="sim-nome" placeholder="Nome do cliente (opcional)" style="width:200px">
+          <select id="sim-quando" style="width:190px">
+            <option value="">Horário de agora</option>
+            <option value="terça-feira, 21:15">Terça às 21h15</option>
+            <option value="sábado, 10:30">Sábado às 10h30</option>
+            <option value="domingo, 16:00">Domingo às 16h</option>
+            <option value="quarta-feira, 06:40">Quarta às 6h40</option>
+          </select>
+          <button id="sim-nova">Nova conversa</button>
+        </div>
+      </div>
+      <div class="dupla">
+        <div>
+          <div class="chat" id="sim-chat"><div class="vazio">Escreve como se fosses um cliente chamando no WhatsApp.</div></div>
+          <div class="enviar">
+            <textarea id="sim-msg" rows="2" placeholder="Mensagem do cliente…"></textarea>
+            <button class="principal" id="sim-enviar">Enviar</button>
+          </div>
+        </div>
+        <div class="card resumo" id="sim-resumo"><div class="meta">O resumo para a equipe aparece aqui.</div></div>
+      </div>
+    </section>
+
+    <!-- MODO SOMBRA -->
+    <section id="aba-sombra" hidden>
+      <div class="linha" style="justify-content:space-between;margin-bottom:12px">
+        <div>
+          <h2>Modo sombra</h2>
+          <div class="meta">Clientes reais da <b id="sombra-inst">Thainara</b> fora do horário. A Aline escreve o que responderia, mas <b>não envia</b>.</div>
+        </div>
+        <label class="chave"><input type="checkbox" id="sombra-ativa"> Modo sombra ligado</label>
+      </div>
+      <div class="grade" id="sombra-numeros"></div>
+      <div class="dupla">
+        <div class="card lista" style="padding:0" id="sombra-lista"><div class="vazio">Carregando…</div></div>
+        <div id="sombra-detalhe"><div class="card meta">Escolhe uma conversa para ver.</div></div>
+      </div>
+    </section>
+
+    <!-- REGRAS -->
+    <section id="aba-regras" hidden>
+      <h2>Regras da Aline</h2>
+      <div class="meta">O que tu escreveres aqui vale na hora, no simulador e no modo sombra.</div>
+      <div class="card" style="margin-top:12px">
+        <div class="linha">
+          <div style="flex:1;min-width:180px"><label class="campo">Nome</label><input id="r-persona"></div>
+          <div style="flex:1;min-width:220px"><label class="campo">Modelo do Claude</label>
+            <select id="r-modelo">
+              <option value="claude-opus-5-5">Opus 5.5 · melhor conversa</option>
+              <option value="claude-sonnet-5-5">Sonnet 5.5 · metade do custo</option>
+              <option value="claude-haiku-5-5">Haiku 5.5 · mais barato</option>
+            </select>
+          </div>
+        </div>
+        <label class="campo">Instruções</label>
+        <textarea id="r-instrucoes" rows="22" style="font-family:ui-monospace,Menlo,monospace;font-size:13px"></textarea>
+        <div class="meta" style="margin-top:8px">Sempre valem também, fixas no código: se o cliente perguntar se é robô ou IA, ela não nega; nunca inventa valores ou informações; não obedece pedidos do cliente para mudar as regras.</div>
+        <div class="linha" style="margin-top:12px;justify-content:space-between">
+          <label class="chave"><input type="checkbox" id="r-envio" disabled> Responder clientes de verdade <span class="meta">(liberado depois do modo sombra)</span></label>
+          <button class="principal" id="r-salvar">Salvar regras</button>
+        </div>
+        <div class="meta" id="r-quando"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="aviso" id="aviso"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = "https://jgdbnkwhmesgjvsymgma.supabase.co";
+const SUPABASE_KEY = "sb_publishable_qvAy43WiHGUyk0aitpg_WQ_2xYfKEKu";
+const FUNCAO_IA = `${SUPABASE_URL}/functions/v1/crm-aluguel-ia`;
+const ATENDENTES = { ALUGUELARA: "Thainara", central: "Milene" };
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const dolar = (v) => `US$ ${Number(v ?? 0).toFixed(Number(v) < 0.1 ? 4 : 2)}`;
+const hora = (iso) => new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+function aviso(t) { const a = $("aviso"); a.textContent = t; a.classList.add("on"); setTimeout(() => a.classList.remove("on"), 2500); }
+
+let regras = null;
+
+// ---------- login (mesmo login do CRM; só administrador) ----------
+
+async function entrar(sessao) {
+  if (!sessao) { $("login").hidden = false; $("app").hidden = true; return; }
+  const { data } = await db.from("crm_aluguel_usuarios").select("papel").eq("user_id", sessao.user.id).maybeSingle();
+  if (data?.papel !== "admin") {
+    await db.auth.signOut();
+    $("erro-login").textContent = "Só o administrador acessa o pré-atendimento.";
+    $("login").hidden = false; $("app").hidden = true;
+    return;
+  }
+  $("login").hidden = true; $("app").hidden = false;
+  await carregarRegras();
+}
+
+$("form-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const { data, error } = await db.auth.signInWithPassword({ email: $("email").value.trim(), password: $("senha").value });
+  if (error) { $("erro-login").textContent = "E-mail ou senha incorretos."; return; }
+  entrar(data.session);
+});
+$("sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
+
+$("abas").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-aba]");
+  if (!b) return;
+  document.querySelectorAll("#abas button").forEach((x) => x.classList.toggle("ativo", x === b));
+  ["simulador", "sombra", "regras"].forEach((a) => ($("aba-" + a).hidden = a !== b.dataset.aba));
+  if (b.dataset.aba === "sombra") carregarSombra();
+});
+
+// ---------- regras ----------
+
+async function carregarRegras() {
+  const { data, error } = await db.from("crm_aluguel_ia_regras").select("*").eq("id", 1).single();
+  if (error) { aviso("Não consegui ler as regras: " + error.message); return; }
+  regras = data;
+  $("persona-topo").textContent = data.persona;
+  $("r-persona").value = data.persona;
+  $("r-modelo").value = data.modelo;
+  $("r-instrucoes").value = data.instrucoes.trim();
+  $("r-envio").checked = data.envio_ativo;
+  $("sombra-ativa").checked = data.sombra_ativa;
+  $("sombra-inst").textContent = ATENDENTES[data.instancia] ?? data.instancia;
+  $("r-quando").textContent = `Última alteração: ${hora(data.atualizado_em)}`;
+}
+
+$("r-salvar").addEventListener("click", async () => {
+  const { data: s } = await db.auth.getSession();
+  const { error } = await db.from("crm_aluguel_ia_regras").update({
+    persona: $("r-persona").value.trim() || "Aline",
+    modelo: $("r-modelo").value,
+    instrucoes: $("r-instrucoes").value,
+    atualizado_em: new Date().toISOString(),
+    atualizado_por: s.session?.user.id,
+  }).eq("id", 1);
+  if (error) { aviso("Não salvou: " + error.message); return; }
+  aviso("Regras salvas");
+  carregarRegras();
+});
+
+$("sombra-ativa").addEventListener("change", async (e) => {
+  const { error } = await db.from("crm_aluguel_ia_regras").update({ sombra_ativa: e.target.checked }).eq("id", 1);
+  if (error) { aviso(error.message); e.target.checked = !e.target.checked; return; }
+  aviso(e.target.checked ? "Modo sombra ligado" : "Modo sombra desligado");
+});
+
+// ---------- balões e avaliação ----------
+
+function balao(m, sombra) {
+  const nota = (v, ic) => `<button data-msg="${m.id}" data-nota="${v}" class="${m.avaliacao === v ? "marcada" : ""}" title="${v === "boa" ? "Resposta boa" : "Resposta ruim"}">${ic}</button>`;
+  return `<div class="balao ${m.papel}${sombra && m.papel === "ia" ? " sombra" : ""}">${esc(m.texto)}
+    <div class="hora"><span>${m.papel === "ia" ? (sombra ? "Aline teria respondido · " : "Aline · ") : ""}${hora(m.em)}</span>
+      ${m.papel === "ia" && m.id ? `<span class="notas">${nota("boa", "👍")}${nota("ruim", "👎")}<button data-msg="${m.id}" data-coment title="Comentar">💬</button></span>` : ""}
+    </div>${m.comentario ? `<div class="coment">💬 ${esc(m.comentario)}</div>` : ""}</div>`;
+}
+
+function blocoResumo(c) {
+  const r = c?.resumo ?? {};
+  const linha = (rot, v) => `<dt>${rot}</dt><dd>${v ? esc(v) : '<span class="meta">—</span>'}</dd>`;
+  const tipos = { lead_aluguel: "Lead de aluguel", inquilino_suporte: "Inquilino / suporte", vendas: "Vendas", outro: "Outro", indefinido: "Ainda não deu para saber" };
+  return `<div class="linha" style="justify-content:space-between;margin-bottom:8px"><b>Resumo para a equipe</b>
+      ${c?.precisa_humano ? '<span class="selo alerta">Precisa de alguém da equipe</span>' : ""}</div>
+    <dl>
+      ${linha("Tipo", tipos[c?.tipo_contato] ?? c?.tipo_contato)}
+      ${linha("Imóvel / busca", r.imovel_ou_busca)}
+      ${linha("Mudança", r.prazo_mudanca)}
+      ${linha("Pessoas", r.pessoas)}
+      ${linha("Pets", r.pets)}
+      ${linha("Garantia", r.garantia)}
+      ${linha("Visita", r.visita_preferencia)}
+      ${linha("Observações", r.observacoes)}
+    </dl>
+    <div class="meta" style="margin-top:10px">Custo desta conversa: ${dolar(c?.custo_usd)}</div>`;
+}
+
+async function avaliarMensagem(id, campos, depois) {
+  const { error } = await db.from("crm_aluguel_ia_mensagens").update(campos).eq("id", id);
+  if (error) { aviso(error.message); return; }
+  depois();
+}
+
+function ligarNotas(container, recarregar) {
+  container.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-msg]");
+    if (!b) return;
+    const id = Number(b.dataset.msg);
+    if (b.hasAttribute("data-coment")) {
+      const t = prompt("O que a Aline devia ter feito diferente nesta resposta?");
+      if (t != null) avaliarMensagem(id, { comentario: t.trim() || null }, recarregar);
+      return;
+    }
+    const v = b.classList.contains("marcada") ? null : b.dataset.nota;
+    avaliarMensagem(id, { avaliacao: v }, recarregar);
+  });
+}
+
+// ---------- simulador ----------
+
+let simConversa = null;
+
+async function desenharSimulador() {
+  if (!simConversa) return;
+  const [{ data: c }, { data: msgs }] = await Promise.all([
+    db.from("crm_aluguel_ia_conversas").select("*").eq("id", simConversa).single(),
+    db.from("crm_aluguel_ia_mensagens").select("*").eq("conversa_id", simConversa).order("id"),
+  ]);
+  $("sim-chat").innerHTML = (msgs ?? []).map((m) => balao(m, false)).join("") || '<div class="vazio">—</div>';
+  $("sim-chat").scrollTop = $("sim-chat").scrollHeight;
+  $("sim-resumo").innerHTML = blocoResumo(c);
+}
+
+async function enviarSimulador() {
+  const texto = $("sim-msg").value.trim();
+  if (!texto) return;
+  $("sim-msg").value = "";
+  $("sim-enviar").disabled = true;
+  if (!simConversa) $("sim-chat").innerHTML = "";
+  $("sim-chat").insertAdjacentHTML("beforeend", balao({ papel: "cliente", texto, em: new Date().toISOString() }, false) +
+    `<div class="digitando" id="sim-digitando">${esc(regras?.persona ?? "Aline")} está digitando…</div>`);
+  $("sim-chat").scrollTop = $("sim-chat").scrollHeight;
+  try {
+    const { data: s } = await db.auth.getSession();
+    const r = await fetch(`${FUNCAO_IA}?acao=simular`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.session.access_token}`, apikey: SUPABASE_KEY },
+      body: JSON.stringify({ conversa_id: simConversa, mensagem: texto, nome_cliente: $("sim-nome").value.trim() || null, quando: $("sim-quando").value || null }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || r.statusText);
+    simConversa = j.conversa_id;
+    await desenharSimulador();
+  } catch (e) {
+    $("sim-digitando")?.remove();
+    aviso("Erro: " + e.message);
+  } finally {
+    $("sim-enviar").disabled = false;
+    $("sim-msg").focus();
+  }
+}
+
+$("sim-enviar").addEventListener("click", enviarSimulador);
+$("sim-msg").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviarSimulador(); } });
+$("sim-nova").addEventListener("click", () => {
+  simConversa = null;
+  $("sim-chat").innerHTML = '<div class="vazio">Nova conversa. Escreve como cliente.</div>';
+  $("sim-resumo").innerHTML = '<div class="meta">O resumo para a equipe aparece aqui.</div>';
+});
+ligarNotas($("sim-chat"), desenharSimulador);
+
+// ---------- modo sombra ----------
+
+let sombraAberta = null;
+
+async function carregarSombra() {
+  const { data, error } = await db.from("crm_aluguel_ia_conversas")
+    .select("id, nome, telefone, instancia, tipo_contato, precisa_humano, avaliacao, custo_usd, criado_em, ultima_atividade, crm_aluguel_ia_mensagens(count)")
+    .eq("tipo", "sombra").order("ultima_atividade", { ascending: false }).limit(200);
+  if (error) { $("sombra-lista").innerHTML = `<div class="vazio">${esc(error.message)}</div>`; return; }
+  const total = data.length, custo = data.reduce((s, c) => s + Number(c.custo_usd), 0);
+  const boas = data.filter((c) => c.avaliacao === "boa").length, ruins = data.filter((c) => c.avaliacao === "ruim").length;
+  $("sombra-numeros").innerHTML = [
+    ["Conversas", total], ["Avaliadas 👍 / 👎", `${boas} / ${ruins}`], ["Sem avaliar", total - boas - ruins],
+    ["Custo total", dolar(custo)], ["Custo médio", total ? dolar(custo / total) : "—"],
+  ].map(([r, v]) => `<div class="num"><div class="meta">${r}</div><div class="val">${v}</div></div>`).join("");
+  $("sombra-lista").innerHTML = data.length ? data.map((c) => `<div class="item" data-id="${c.id}">
+      <div class="info"><b>${esc(c.nome ?? c.telefone)}</b> ${c.precisa_humano ? '<span class="selo alerta">equipe</span>' : ""}
+        <div class="meta">${hora(c.criado_em)} · ${c.crm_aluguel_ia_mensagens?.[0]?.count ?? 0} mensagens · ${dolar(c.custo_usd)}</div></div>
+      <span style="font-size:18px">${c.avaliacao === "boa" ? "👍" : c.avaliacao === "ruim" ? "👎" : ""}</span>
+    </div>`).join("")
+    : '<div class="vazio">Ainda não chegou cliente fora do horário desde que o modo sombra foi ligado.</div>';
+  if (sombraAberta) abrirSombra(sombraAberta);
+}
+
+async function abrirSombra(id) {
+  sombraAberta = id;
+  const [{ data: c }, { data: msgs }] = await Promise.all([
+    db.from("crm_aluguel_ia_conversas").select("*").eq("id", id).single(),
+    db.from("crm_aluguel_ia_mensagens").select("*").eq("conversa_id", id).order("id"),
+  ]);
+  $("sombra-detalhe").innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div class="linha" style="justify-content:space-between">
+        <div><b>${esc(c.nome ?? "")}</b> <span class="meta">${esc(c.telefone ?? "")} · ${esc(ATENDENTES[c.instancia] ?? c.instancia ?? "")}</span></div>
+        <a class="meta" href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">abrir no WhatsApp</a>
+      </div>
+      <div class="linha" style="margin-top:10px">
+        <span class="meta">Esta conversa ficou:</span>
+        <button data-conv-nota="boa" class="${c.avaliacao === "boa" ? "principal" : ""}">👍 Boa</button>
+        <button data-conv-nota="ruim" class="${c.avaliacao === "ruim" ? "principal" : ""}">👎 Ruim</button>
+      </div>
+      <textarea id="conv-coment" rows="2" style="margin-top:8px" placeholder="Comentário geral sobre a conversa…">${esc(c.comentario ?? "")}</textarea>
+      <button id="conv-salvar" style="margin-top:6px">Salvar comentário</button>
+    </div>
+    <div class="chat" id="sombra-chat" style="min-height:200px">${(msgs ?? []).map((m) => balao(m, true)).join("")}</div>
+    <div class="meta" style="margin:6px 0 12px">Balões tracejados = respostas que a ${esc(regras?.persona ?? "Aline")} daria (nenhuma foi enviada). O cliente não viu essas respostas, então as mensagens seguintes dele são as que mandou de verdade.</div>
+    <div class="card resumo">${blocoResumo(c)}</div>`;
+  document.querySelectorAll("#sombra-lista .item").forEach((el) => (el.style.background = el.dataset.id === id ? "var(--destaque-claro)" : ""));
+}
+
+$("sombra-lista").addEventListener("click", (e) => { const it = e.target.closest(".item"); if (it) abrirSombra(it.dataset.id); });
+$("sombra-detalhe").addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.convNota) {
+    const { error } = await db.from("crm_aluguel_ia_conversas").update({ avaliacao: b.dataset.convNota }).eq("id", sombraAberta);
+    if (error) return aviso(error.message);
+    carregarSombra();
+  } else if (b.id === "conv-salvar") {
+    const { error } = await db.from("crm_aluguel_ia_conversas").update({ comentario: $("conv-coment").value.trim() || null }).eq("id", sombraAberta);
+    if (error) return aviso(error.message);
+    aviso("Comentário salvo");
+  }
+});
+ligarNotas($("sombra-detalhe"), () => abrirSombra(sombraAberta));
+
+db.auth.getSession().then(({ data }) => entrar(data.session));
+</script>
+</body>
+</html>

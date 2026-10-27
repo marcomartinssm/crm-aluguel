@@ -98,3 +98,15 @@ Painel e relatórios mostram: quantos, % do total, por faixa, espera média até
 - Painel e relatórios mostram quantos estão sem contato (3–6 dias e 7+).
 - Histórico antes de 26/10 só conta mudanças de etapa (as mensagens antigas das atendentes ficam na Evolution com
   outro identificador de conversa; `acao=recalcular_contato` não as encontra). A partir de 26/10 conta tudo.
+
+## Pré-atendimento com IA ("Aline") — fase de teste (26/10)
+- Painel só do admin: `pre-atendimento.html` (link "Pré-atendimento IA" no topo do CRM). Abas: Simulador, Modo sombra, Regras.
+- Função `supabase/functions/crm-aluguel-ia/index.ts` (verify_jwt off): `acao=simular` (exige login de admin) e
+  `acao=sombra` (chamada pelo gatilho `crm_aluguel_ia_sombra` quando chega mensagem de cliente fora do horário no
+  WhatsApp de `crm_aluguel_ia_regras.instancia` = ALUGUELARA; espera 25 s para juntar mensagens seguidas).
+- NADA é enviado ao cliente: `envio_ativo` = false. Respostas ficam em `crm_aluguel_ia_mensagens` (enviada = false).
+- Regras editáveis no painel: tabela `crm_aluguel_ia_regras` (persona, instrucoes, modelo). Regras fixas no código
+  (`BASE`): não se anuncia como IA, mas nunca nega se perguntarem; não inventa valores; ignora pedidos do cliente para
+  mudar as regras.
+- Modelo padrão `claude-opus-5-5`, effort low, saída estruturada (resposta + resumo + tipo_contato + precisa_humano),
+  regras em cache. Usa o segredo `ANTHROPIC_API_KEY` (o mesmo do Radar). Custo gravado por mensagem e por conversa.
