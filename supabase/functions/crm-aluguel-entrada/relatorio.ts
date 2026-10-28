@@ -49,6 +49,9 @@ const MOTIVOS: Record<string, string> = {
   alugou_direto: "Alugou direto com o proprietário",
   desistiu_de_locar: "Desistiu de locar",
   nao_responde: "Não responde mais",
+  clicou_errado: "Clicou errado",
+  cidade_nao_atendida: "Cidade que não atendemos",
+  outro: "Outro",
   reprovado: "Reprovado",
 };
 const ETAPAS: Record<string, string> = {

@@ -616,13 +616,21 @@ async function carregarPainel() {
     ${caixa("Tempo até fechar", fe.media_dias != null ? `${String(fe.media_dias).replace(".", ",")} dias` : "–", `média de ${fe.realizados} contrato${fe.realizados === 1 ? "" : "s"}`, true)}
   </div>`;
 
+  // textos livres do motivo "Outro", para avaliar e talvez virar motivo fixo
+  const { data: outrosDados } = await comAtendente(db.from("crm_aluguel_contatos")
+    .select("nome, telefone, instancia, transferido_de, motivo_detalhe, fechado_em").eq("motivo", "outro"))
+    .gte("fechado_em", ini.toISOString()).lt("fechado_em", fim.toISOString()).order("fechado_em", { ascending: false }).limit(100);
+  const outros = outrosDados ?? [];
   const maior = Math.max(1, ...d.perdas.map((p) => p.n));
   h += `<div class="secao-painel">Por que perdemos · motivo e etapa onde parou</div><div class="lista" style="padding:4px 14px">${
     d.perdas.length ? d.perdas.map((p) => `<div class="barra-linha">
-      <span class="txt">${esc(MOTIVOS[p.motivo] ?? p.motivo)} · ${esc(NOME_ETAPA[p.etapa] ?? p.etapa)}</span>
+      <span class="txt">${esc(p.motivo === "outro" ? "Outro" : (MOTIVOS[p.motivo] ?? p.motivo))} · ${esc(NOME_ETAPA[p.etapa] ?? p.etapa)}</span>
       <span class="trilho"><div class="barra" style="width:${Math.round((p.n / maior) * 100)}%"></div></span>
       <span class="qtd">${p.n}</span></div>`).join("")
     : '<div class="vazio" style="padding:16px">Nenhuma perda no período.</div>'}</div>
+    ${outros.length ? `<div class="secao-painel">Motivos escritos em "Outro" (${outros.length})</div><div class="lista" style="padding:4px 14px">${
+      outros.map((o) => `<div class="barra-linha"><span style="flex:1">"${esc(o.motivo_detalhe)}"</span><span class="meta">${esc(o.nome ?? telefoneBonito(o.telefone))} · ${esc(ATENDENTES[o.transferido_de ?? o.instancia] ?? "")} · ${new Date(o.fechado_em).toLocaleDateString("pt-BR")}</span></div>`).join("")
+    }</div>` : ""}
     <p class="meta">Taxas comparam o que aconteceu dentro do período escolhido. Horário comercial: seg a sex 8h–12h e 13h30–18h.</p>`;
 
   $("painel").innerHTML = h;
@@ -656,8 +664,15 @@ const MOTIVOS = {
   alugou_direto: "Alugou direto com o proprietário",
   desistiu_de_locar: "Desistiu de locar",
   nao_responde: "Não responde mais as mensagens",
+  clicou_errado: "Clicou errado / não era interesse",
+  cidade_nao_atendida: "Quer cidade que não atendemos",
+  outro: "Outro (escrever o motivo)",
   reprovado: "Reprovado",
 };
+
+// Perdido (aprovado que não fechou) usa os 4 primeiros; Descartado usa a lista completa.
+const MOTIVOS_PERDIDO = ["alugou_outra_imobiliaria", "alugou_direto", "desistiu_de_locar", "nao_responde"];
+const MOTIVOS_DESCARTE = [...MOTIVOS_PERDIDO, "clicou_errado", "cidade_nao_atendida", "outro"];
 
 const NOME_ETAPA = Object.fromEntries(COLUNAS.map((c) => [c.id, c.nome.toLowerCase()]));
 
@@ -681,7 +696,7 @@ let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / c
 async function carregarFunil() {
   const desde = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data, error } = await comAtendente(db.from("crm_aluguel_contatos")
-    .select("id, instancia, transferido_de, telefone, nome, origem, imovel_link, voltou_em, ultimo_contato_em, atualizado_manual_em, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
+    .select("id, instancia, transferido_de, telefone, nome, origem, imovel_link, voltou_em, ultimo_contato_em, atualizado_manual_em, motivo_detalhe, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
     .eq("classificacao", "aluguel"))
     .or(`fechado_em.is.null,fechado_em.gte.${desde},voltou_em.not.is.null`)
     .order("etapa_em", { ascending: true })
@@ -726,12 +741,13 @@ function cartaoFunil(c) {
     h += linhaContato(c);
     if (c.primeira_resposta_min == null) h += linhaTempo(c);
   }
-  if (c.motivo) h += `<div class="motivo">${esc(MOTIVOS[c.motivo] ?? c.motivo)}${c.etapa_da_perda ? " · " + esc(NOME_ETAPA[c.etapa_da_perda] ?? c.etapa_da_perda) : ""}</div>`;
+  if (c.motivo) h += `<div class="motivo">${c.motivo === "outro" && c.motivo_detalhe ? "Outro: " + esc(c.motivo_detalhe) : esc(MOTIVOS[c.motivo] ?? c.motivo)}${c.etapa_da_perda ? " · " + esc(NOME_ETAPA[c.etapa_da_perda] ?? c.etapa_da_perda) : ""}</div>`;
 
   if (abertoEm && abertoEm.id === c.id) {
     if (abertoEm.tipo === "motivo") {
-      const lista = Object.entries(MOTIVOS).filter(([k]) => k !== "reprovado");
-      h += `<select data-motivo><option value="">Escolha o motivo</option>${lista.map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>`;
+      const lista = abertoEm.para === "perdido" ? MOTIVOS_PERDIDO : MOTIVOS_DESCARTE;
+      h += `<select data-motivo><option value="">Escolha o motivo</option>${lista.map((k) => `<option value="${k}">${MOTIVOS[k]}</option>`).join("")}</select>
+        <textarea data-motivo-detalhe rows="2" placeholder="Qual foi o motivo?" hidden style="font:inherit;font-size:12px;width:100%;margin-top:6px;padding:5px;border-radius:6px;border:1px solid var(--borda);background:var(--card);color:var(--texto)"></textarea>`;
     } else if (abertoEm.tipo === "semvisita") {
       h += `<label><input type="checkbox" data-semvisita> Cliente não quis visitar</label>`;
       if (c.instancia !== INSTANCIA_FICHA) h += `<div class="meta" style="margin-top:6px">O cliente passa para a ${esc(ATENDENTES[INSTANCIA_FICHA])}.</div>`;
@@ -778,10 +794,19 @@ function desenharFunil() {
 }
 
 $("busca-funil").addEventListener("input", desenharFunil);
+$("quadro").addEventListener("change", (e) => {
+  const sel = e.target.closest("[data-motivo]");
+  if (!sel) return;
+  const caixa = sel.parentElement.querySelector("[data-motivo-detalhe]");
+  caixa.hidden = sel.value !== "outro";
+  if (!caixa.hidden) caixa.focus();
+});
 $("filtro-contato").addEventListener("change", desenharFunil);
 
-async function mover(id, para, motivo, semVisita) {
-  const { error } = await db.rpc("crm_aluguel_mover", { p_contato: id, p_para: para, p_motivo: motivo ?? null, p_sem_visita: !!semVisita });
+async function mover(id, para, motivo, semVisita, detalhe) {
+  const { error } = await db.rpc("crm_aluguel_mover", {
+    p_contato: id, p_para: para, p_motivo: motivo ?? null, p_sem_visita: !!semVisita, p_motivo_detalhe: detalhe ?? null,
+  });
   if (error) { aviso(error.message); return false; }
   const col = COLUNAS.find((c) => c.id === para);
   const card = funil.find((c) => c.id === id);
@@ -809,17 +834,21 @@ $("quadro").addEventListener("click", async (e) => {
   }
 
   if (b.hasAttribute("data-ok")) {
-    let motivo = null, semVisita = false;
+    let motivo = null, semVisita = false, detalhe = null;
     if (abertoEm.tipo === "motivo") {
       motivo = cartao.querySelector("[data-motivo]").value;
       if (!motivo) { aviso("Escolha o motivo"); return; }
+      if (motivo === "outro") {
+        detalhe = cartao.querySelector("[data-motivo-detalhe]").value.trim();
+        if (!detalhe) { aviso("Escreva qual foi o motivo"); return; }
+      }
     }
     if (abertoEm.tipo === "semvisita") {
       semVisita = cartao.querySelector("[data-semvisita]").checked;
       if (!semVisita) { aviso('Marque "Cliente não quis visitar"'); return; }
     }
     b.disabled = true;
-    const ok = await mover(id, abertoEm.para, motivo, semVisita);
+    const ok = await mover(id, abertoEm.para, motivo, semVisita, detalhe);
     if (!ok) { b.disabled = false; return; }
     abertoEm = null;
     carregarFunil();
