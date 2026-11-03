@@ -46,7 +46,10 @@
   main.largo { max-width: none; }
 
   /* funil */
-  .quadro { display: grid; grid-auto-flow: column; grid-auto-columns: 210px; gap: 10px; overflow-x: auto; padding-bottom: 10px; align-items: start; }
+  /* o quadro ocupa só a altura da tela: a barra de rolagem lateral fica sempre visível embaixo */
+  .quadro { display: grid; grid-auto-flow: column; grid-auto-columns: 210px; gap: 10px; overflow: auto; padding-bottom: 10px; align-items: start;
+            max-height: var(--altura-quadro, calc(100vh - 200px)); overscroll-behavior: contain; }
+  .quadro .coluna h3 { position: sticky; top: 0; z-index: 1; background: inherit; padding: 4px 0; }
   .coluna { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 10px; min-height: 160px; }
   .coluna h3 { margin: 0; font-size: 14px; display: flex; justify-content: space-between; gap: 6px; }
   .coluna h3 .n { font-weight: 400; color: var(--suave); }
@@ -800,6 +803,15 @@ function cartaoFunil(c) {
   return h + "</div>";
 }
 
+// Altura do quadro = do topo dele até o fim da tela (barra lateral sempre à vista, sem descer a página).
+function ajustarAlturaQuadro() {
+  const q = $("quadro");
+  if (!q.offsetParent) return;
+  const topo = q.getBoundingClientRect().top + window.scrollY;
+  q.style.setProperty("--altura-quadro", Math.max(320, window.innerHeight - topo - 50)  // 50 = aviso abaixo do quadro + "px");
+}
+window.addEventListener("resize", ajustarAlturaQuadro);
+
 function desenharFunil() {
   const termo = $("busca-funil").value.trim().toLowerCase();
   const so = termo.replace(/\D/g, "");
@@ -819,6 +831,7 @@ function desenharFunil() {
       ${itens.map(cartaoFunil).join("")}
     </div>`;
   }).join("");
+  ajustarAlturaQuadro();
 }
 
 $("busca-funil").addEventListener("input", desenharFunil);
