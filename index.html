@@ -808,7 +808,8 @@ function ajustarAlturaQuadro() {
   const q = $("quadro");
   if (!q.offsetParent) return;
   const topo = q.getBoundingClientRect().top + window.scrollY;
-  q.style.setProperty("--altura-quadro", Math.max(320, window.innerHeight - topo - 50)  // 50 = aviso abaixo do quadro + "px");
+  // 50 = espaço do aviso abaixo do quadro
+  q.style.setProperty("--altura-quadro", Math.max(320, window.innerHeight - topo - 50) + "px");
 }
 window.addEventListener("resize", ajustarAlturaQuadro);
 
