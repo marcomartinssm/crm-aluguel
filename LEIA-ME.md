@@ -113,3 +113,9 @@ Painel e relatórios mostram: quantos, % do total, por faixa, espera média até
   mudar as regras.
 - Modelo padrão `claude-opus-5-5`, effort low, saída estruturada (resposta + resumo + tipo_contato + precisa_humano),
   regras em cache. Usa o segredo `ANTHROPIC_API_KEY` (o mesmo do Radar). Custo gravado por mensagem e por conversa.
+
+## Ler uma conversa (só leitura, 03/11)
+Função `supabase/functions/crm-aluguel-conversa` (verify_jwt off, mesmo `?token=`). Não envia nada.
+- `?instancia=ALUGUELARA&chats=1` lista as conversas com o `@lid` e o número (`alt`). As mensagens recentes ficam no `@lid`;
+  pelo número a Evolution só devolve as antigas.
+- `?instancia=ALUGUELARA&jid=<lid>@lid&qtd=40` traz as últimas mensagens (deMim = atendente).
