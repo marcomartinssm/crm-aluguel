@@ -103,7 +103,7 @@ export function montarTexto(tipo: TipoRelatorio, p: ReturnType<typeof periodo>, 
   if (d.fechamento.media_dias != null) l.push(`• Tempo médio até fechar: ${String(d.fechamento.media_dias).replace(".", ",")} dias`);
   l.push("");
   l.push("*Como está agora*");
-  l.push(`• Em pré-atendimento: ${d.agora.entrada} · Em atendimento: ${n(et, "atendimento")}`);
+  l.push(`• Em pré-atendimento: ${d.agora.entrada} · Em atendimento: ${n(et, "atendimento")} · Aguardando imóvel ideal: ${n(et, "aguardando_imovel")}`);
   l.push(`• Em visita: ${emVisita} · Em ficha de análise: ${n(et, "ficha")} · Aprovados aguardando: ${n(et, "aprovado")}`);
   const ag = d.agora;
   if (ag.sem_contato_vermelho || ag.sem_contato_amarelo) {
