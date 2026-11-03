@@ -51,6 +51,9 @@ Colunas: 1 Atendimento · 1.1 Aguardando imóvel ideal · 2 Visita · 2.1 Visita
 - **1.1 Aguardando imóvel ideal** (03/11, `aguardando_imovel`): cliente sem imóvel que sirva agora. Entra de 1, 2.1 ou 2.2;
   sai para Visita ("Achou imóvel"), Ficha ou Descartado. Ficha a partir de 1.1 só exige "Cliente não quis visitar" se ele nunca visitou.
   O alerta de "sem contato" continua valendo (lembrete para mandar opções).
+  Ao mandar para 1.1 a atendente é obrigada a escrever **o que o cliente procura** (mín. 10 letras; `p_observacao` do
+  `crm_aluguel_mover`). Fica em `crm_aluguel_contatos.imovel_procurado` (+ `_em`) e em `crm_aluguel_movimentos.observacao`;
+  aparece no cartão ("Procura: ...") e entra na busca do Funil (ex.: buscar "3 quartos").
 - A etapa onde o cliente parou fica em `etapa_da_perda`; finais podem ser reabertos (voltam para Atendimento).
 - Cada mudança vira uma linha em `crm_aluguel_movimentos`. Tempo até fechar = `fechado_em - entrou_funil_em`.
 

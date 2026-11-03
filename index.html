@@ -76,6 +76,8 @@
   .cartao.alerta-vermelho { border-left: 4px solid #b3261e; }
   .cartao .botoes button.atualizar { flex-basis: 100%; font-size: 11px; color: var(--suave); border-style: dashed; }
   #filtro-contato { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--texto); }
+  .procura { font-size: 12px; margin-top: 6px; padding: 5px 7px; border-radius: 6px; background: var(--ambar-claro); color: var(--texto); white-space: pre-wrap; }
+  .procura b { color: var(--ambar); }
   .motivo { font-size: 12px; margin-top: 4px; padding: 3px 6px; border-radius: 6px; background: var(--fundo); color: var(--suave); }
   .busca { max-width: 260px; }
 
@@ -196,7 +198,7 @@
             <option value="amarelo">Sem contato há 3+ dias</option>
             <option value="vermelho">Sem contato há 7+ dias</option>
           </select>
-          <input class="busca" id="busca-funil" type="search" placeholder="Buscar nome ou telefone">
+          <input class="busca" id="busca-funil" type="search" placeholder="Buscar nome, telefone ou o que procura">
         </div>
       </div>
       <div class="quadro" id="quadro"><div class="vazio">Carregando…</div></div>
@@ -678,14 +680,14 @@ const MOTIVOS_DESCARTE = [...MOTIVOS_PERDIDO, "clicou_errado", "cidade_nao_atend
 
 const NOME_ETAPA = Object.fromEntries(COLUNAS.map((c) => [c.id, c.nome.toLowerCase()]));
 
-// botões de cada etapa: [texto, destino, tipo]  tipo: motivo | semvisita | confirmar
+// botões de cada etapa: [texto, destino, tipo]  tipo: motivo | semvisita | confirmar | procura (pede o imóvel que o cliente quer)
 const ACOES = {
-  atendimento:          [["Marcar visita", "visita"], ["Aguardando imóvel", "aguardando_imovel"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
+  atendimento:          [["Marcar visita", "visita"], ["Aguardando imóvel", "aguardando_imovel", "procura"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
   // quem já visitou algum imóvel antes manda a ficha sem precisar marcar "não quis visitar" (ver acoesDe)
   aguardando_imovel:    [["Achou imóvel: marcar visita", "visita"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
   visita:               [["Realizada", "visita_realizada"], ["Não foi", "visita_nao_realizada"]],
-  visita_realizada:     [["Enviar ficha", "ficha"], ["Aguardando imóvel", "aguardando_imovel"], ["Descartar", "descartado", "motivo"]],
-  visita_nao_realizada: [["Reagendar", "visita"], ["Aguardando imóvel", "aguardando_imovel"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
+  visita_realizada:     [["Enviar ficha", "ficha"], ["Aguardando imóvel", "aguardando_imovel", "procura"], ["Descartar", "descartado", "motivo"]],
+  visita_nao_realizada: [["Reagendar", "visita"], ["Aguardando imóvel", "aguardando_imovel", "procura"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
   ficha:                [["Aprovar", "aprovado"], ["Reprovar", "reprovado", "confirmar"]],
   aprovado:             [["Realizado", "realizado", "confirmar"], ["Perdido", "perdido", "motivo"]],
   reprovado:  [["Reabrir", "atendimento", "confirmar"]],
@@ -708,7 +710,7 @@ let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / c
 async function carregarFunil() {
   const desde = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data, error } = await comAtendente(db.from("crm_aluguel_contatos")
-    .select("id, instancia, transferido_de, telefone, nome, origem, imovel_link, voltou_em, ultimo_contato_em, atualizado_manual_em, motivo_detalhe, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
+    .select("id, instancia, transferido_de, telefone, nome, origem, imovel_link, voltou_em, ultimo_contato_em, atualizado_manual_em, motivo_detalhe, imovel_procurado, imovel_procurado_em, tem_historico, etapa, etapa_em, motivo, etapa_da_perda, sem_visita, entrou_funil_em, fechado_em, primeira_resposta_min, primeira_resposta_min_expediente, cliente_falou_em, ultima_mensagem")
     .eq("classificacao", "aluguel"))
     .or(`fechado_em.is.null,fechado_em.gte.${desde},voltou_em.not.is.null`)
     .order("etapa_em", { ascending: true })
@@ -760,6 +762,9 @@ function cartaoFunil(c) {
     h += linhaContato(c);
     if (c.primeira_resposta_min == null) h += linhaTempo(c);
   }
+  if (c.etapa === "aguardando_imovel" && c.imovel_procurado) {
+    h += `<div class="procura"><b>Procura:</b> ${esc(c.imovel_procurado)}</div>`;
+  }
   if (c.motivo) h += `<div class="motivo">${c.motivo === "outro" && c.motivo_detalhe ? "Outro: " + esc(c.motivo_detalhe) : esc(MOTIVOS[c.motivo] ?? c.motivo)}${c.etapa_da_perda ? " · " + esc(NOME_ETAPA[c.etapa_da_perda] ?? c.etapa_da_perda) : ""}</div>`;
 
   if (abertoEm && abertoEm.id === c.id) {
@@ -767,6 +772,9 @@ function cartaoFunil(c) {
       const lista = abertoEm.para === "perdido" ? MOTIVOS_PERDIDO : MOTIVOS_DESCARTE;
       h += `<select data-motivo><option value="">Escolha o motivo</option>${lista.map((k) => `<option value="${k}">${MOTIVOS[k]}</option>`).join("")}</select>
         <textarea data-motivo-detalhe rows="2" placeholder="Qual foi o motivo?" hidden style="font:inherit;font-size:12px;width:100%;margin-top:6px;padding:5px;border-radius:6px;border:1px solid var(--borda);background:var(--card);color:var(--texto)"></textarea>`;
+    } else if (abertoEm.tipo === "procura") {
+      h += `<div class="meta" style="margin-top:8px">O que o cliente procura? Todos vão ver no cartão.</div>
+        <textarea data-procura rows="3" placeholder="Ex.: casa 3 quartos, 2 banheiros, Urussanguinha ou Coloninha, até R$ 2.800, aceita pet" style="font:inherit;font-size:12px;width:100%;margin-top:6px;padding:5px;border-radius:6px;border:1px solid var(--borda);background:var(--card);color:var(--texto)">${esc(c.imovel_procurado ?? "")}</textarea>`;
     } else if (abertoEm.tipo === "semvisita") {
       h += `<label><input type="checkbox" data-semvisita> Cliente não quis visitar</label>`;
       if (c.instancia !== INSTANCIA_FICHA) h += `<div class="meta" style="margin-top:6px">O cliente passa para a ${esc(ATENDENTES[INSTANCIA_FICHA])}.</div>`;
@@ -797,7 +805,8 @@ function desenharFunil() {
   const so = termo.replace(/\D/g, "");
   const fc = $("filtro-contato").value;
   const lista = funil.filter((c) =>
-    (!termo || (c.nome ?? "").toLowerCase().includes(termo) || (so && c.telefone.includes(so))) &&
+    (!termo || (c.nome ?? "").toLowerCase().includes(termo) || (so && c.telefone.includes(so)) ||
+      (c.imovel_procurado ?? "").toLowerCase().includes(termo)) &&
     (!fc || (fc === "vermelho" ? nivelContato(c) === "vermelho" : ["amarelo", "vermelho"].includes(nivelContato(c)))));
   const abertos = funil.filter((c) => !c.fechado_em).length;
   const parados = funil.filter((c) => nivelContato(c) === "vermelho").length;
@@ -822,9 +831,10 @@ $("quadro").addEventListener("change", (e) => {
 });
 $("filtro-contato").addEventListener("change", desenharFunil);
 
-async function mover(id, para, motivo, semVisita, detalhe) {
+async function mover(id, para, motivo, semVisita, detalhe, procura) {
   const { error } = await db.rpc("crm_aluguel_mover", {
     p_contato: id, p_para: para, p_motivo: motivo ?? null, p_sem_visita: !!semVisita, p_motivo_detalhe: detalhe ?? null,
+    p_observacao: procura ?? null,
   });
   if (error) { aviso(error.message); return false; }
   const col = COLUNAS.find((c) => c.id === para);
@@ -853,7 +863,7 @@ $("quadro").addEventListener("click", async (e) => {
   }
 
   if (b.hasAttribute("data-ok")) {
-    let motivo = null, semVisita = false, detalhe = null;
+    let motivo = null, semVisita = false, detalhe = null, procura = null;
     if (abertoEm.tipo === "motivo") {
       motivo = cartao.querySelector("[data-motivo]").value;
       if (!motivo) { aviso("Escolha o motivo"); return; }
@@ -866,8 +876,12 @@ $("quadro").addEventListener("click", async (e) => {
       semVisita = cartao.querySelector("[data-semvisita]").checked;
       if (!semVisita) { aviso('Marque "Cliente não quis visitar"'); return; }
     }
+    if (abertoEm.tipo === "procura") {
+      procura = cartao.querySelector("[data-procura]").value.trim();
+      if (procura.length < 10) { aviso("Escreva qual imóvel o cliente procura (tipo, bairro, quartos, valor...)"); return; }
+    }
     b.disabled = true;
-    const ok = await mover(id, abertoEm.para, motivo, semVisita, detalhe);
+    const ok = await mover(id, abertoEm.para, motivo, semVisita, detalhe, procura);
     if (!ok) { b.disabled = false; return; }
     abertoEm = null;
     carregarFunil();
@@ -879,6 +893,7 @@ $("quadro").addEventListener("click", async (e) => {
   if (b.dataset.tipo) {
     abertoEm = { id, para, tipo: b.dataset.tipo, texto: b.dataset.texto };
     desenharFunil();
+    document.querySelector(`.cartao[data-id="${id}"] [data-procura]`)?.focus();
     return;
   }
   cartao.querySelectorAll("button").forEach((x) => (x.disabled = true));
