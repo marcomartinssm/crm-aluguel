@@ -557,6 +557,7 @@ async function carregarPainel() {
   let h = `<div class="secao-painel">Como está agora</div><div class="grade">
     ${caixa("Em pré-atendimento", d.agora.entrada, "na Entrada, esperando classificação")}
     ${caixa("1. Atendimento", n(et, "atendimento"))}
+    ${caixa("1.1 Aguardando imóvel", n(et, "aguardando_imovel"), "esperando aparecer o imóvel certo")}
     ${caixa("2. Visita agendada", n(et, "visita"))}
     ${caixa("2.1 Visitou", n(et, "visita_realizada"))}
     ${caixa("2.2 Faltou", n(et, "visita_nao_realizada"))}
@@ -648,6 +649,7 @@ $("periodos").addEventListener("click", (e) => {
 
 const COLUNAS = [
   { id: "atendimento",          num: "1",   nome: "Atendimento" },
+  { id: "aguardando_imovel",    num: "1.1", nome: "Aguardando imóvel ideal", sub: "Avisar quando aparecer", cor: "ambar" },
   { id: "visita",               num: "2",   nome: "Visita",           sub: "Agendada" },
   { id: "visita_realizada",     num: "2.1", nome: "Visita realizada", sub: "Cliente foi", cor: "azul" },
   { id: "visita_nao_realizada", num: "2.2", nome: "Não realizada",    sub: "Cliente faltou", cor: "ambar" },
@@ -678,10 +680,12 @@ const NOME_ETAPA = Object.fromEntries(COLUNAS.map((c) => [c.id, c.nome.toLowerCa
 
 // botões de cada etapa: [texto, destino, tipo]  tipo: motivo | semvisita | confirmar
 const ACOES = {
-  atendimento:          [["Marcar visita", "visita"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
+  atendimento:          [["Marcar visita", "visita"], ["Aguardando imóvel", "aguardando_imovel"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
+  // quem já visitou algum imóvel antes manda a ficha sem precisar marcar "não quis visitar" (ver acoesDe)
+  aguardando_imovel:    [["Achou imóvel: marcar visita", "visita"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
   visita:               [["Realizada", "visita_realizada"], ["Não foi", "visita_nao_realizada"]],
-  visita_realizada:     [["Enviar ficha", "ficha"], ["Descartar", "descartado", "motivo"]],
-  visita_nao_realizada: [["Reagendar", "visita"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
+  visita_realizada:     [["Enviar ficha", "ficha"], ["Aguardando imóvel", "aguardando_imovel"], ["Descartar", "descartado", "motivo"]],
+  visita_nao_realizada: [["Reagendar", "visita"], ["Aguardando imóvel", "aguardando_imovel"], ["Ficha sem visita", "ficha", "semvisita"], ["Descartar", "descartado", "motivo"]],
   ficha:                [["Aprovar", "aprovado"], ["Reprovar", "reprovado", "confirmar"]],
   aprovado:             [["Realizado", "realizado", "confirmar"], ["Perdido", "perdido", "motivo"]],
   reprovado:  [["Reabrir", "atendimento", "confirmar"]],
@@ -691,6 +695,14 @@ const ACOES = {
 };
 
 let funil = [];
+let jaVisitou = new Set();   // cartões em 1.1 que já fizeram alguma visita
+
+function acoesDe(c) {
+  if (c.etapa === "aguardando_imovel" && jaVisitou.has(c.id)) {
+    return ACOES.aguardando_imovel.map((a) => a[1] === "ficha" ? ["Enviar ficha", "ficha"] : a);
+  }
+  return ACOES[c.etapa] ?? [];
+}
 let abertoEm = null;   // { id, para, tipo } enquanto um cartão pede motivo / confirmação
 
 async function carregarFunil() {
@@ -703,6 +715,13 @@ async function carregarFunil() {
     .limit(1000);
   if (error) { $("quadro").innerHTML = `<div class="vazio">Não consegui carregar: ${esc(error.message)}</div>`; return; }
   await carregarDuplicados();
+  const aguardando = data.filter((c) => c.etapa === "aguardando_imovel").map((c) => c.id);
+  jaVisitou = new Set();
+  if (aguardando.length) {
+    const { data: mv } = await db.from("crm_aluguel_movimentos").select("contato_id")
+      .in("contato_id", aguardando).eq("para", "visita_realizada");
+    for (const m of mv ?? []) jaVisitou.add(m.contato_id);
+  }
   funil = data;
   desenharFunil();
 }
@@ -762,7 +781,7 @@ function cartaoFunil(c) {
     h += `<div class="meta" style="margin-top:8px">Com a ${esc(ATENDENTES[c.instancia] ?? c.instancia)} — só acompanhamento</div>`;
   } else {
     const transfere = c.instancia !== INSTANCIA_FICHA;
-    h += `<div class="botoes">${(ACOES[c.etapa] ?? []).map(([t, para, tipo]) => {
+    h += `<div class="botoes">${acoesDe(c).map(([t, para, tipo]) => {
       if (para === "ficha" && transfere) {
         t = `${t} → ${ATENDENTES[INSTANCIA_FICHA]}`;
         tipo = tipo || "confirmar";

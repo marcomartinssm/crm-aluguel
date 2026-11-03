@@ -41,13 +41,16 @@ Três telas: **Entrada** → **Funil de aluguel** → **Painel** (o Painel só a
   (`primeira_resposta_min_expediente`; seg-sex 8h-12h e 13h30-18h; sem sábado).
 
 ## Funil (função `crm_aluguel_mover` no banco)
-Colunas: 1 Atendimento · 2 Visita · 2.1 Visita realizada · 2.2 Não realizada · 3 Ficha cadastral · 3.1 Aprovado ·
+Colunas: 1 Atendimento · 1.1 Aguardando imóvel ideal · 2 Visita · 2.1 Visita realizada · 2.2 Não realizada · 3 Ficha cadastral · 3.1 Aprovado ·
 3.2 Reprovado · 4.1 Realizado · 4.2 Perdido · 5 Descartado. O banco só aceita os caminhos previstos:
 - Ficha sem visita (saindo de 1 ou 2.2) exige "Cliente não quis visitar".
 - Perdido (só de 3.1) e Descartado (de 1, 2.1, 2.2) exigem motivo; Reprovado grava o motivo sozinho.
 - Motivos (28/10): Perdido = alugou com outra imobiliária, alugou direto, desistiu de locar, não responde.
   Descartado = esses 4 + clicou errado, cidade que não atendemos, Outro (texto obrigatório em `motivo_detalhe`).
   O Painel lista os textos de "Outro" do período para avaliar e, se repetirem, virar motivo fixo.
+- **1.1 Aguardando imóvel ideal** (03/11, `aguardando_imovel`): cliente sem imóvel que sirva agora. Entra de 1, 2.1 ou 2.2;
+  sai para Visita ("Achou imóvel"), Ficha ou Descartado. Ficha a partir de 1.1 só exige "Cliente não quis visitar" se ele nunca visitou.
+  O alerta de "sem contato" continua valendo (lembrete para mandar opções).
 - A etapa onde o cliente parou fica em `etapa_da_perda`; finais podem ser reabertos (voltam para Atendimento).
 - Cada mudança vira uma linha em `crm_aluguel_movimentos`. Tempo até fechar = `fechado_em - entrou_funil_em`.
 
